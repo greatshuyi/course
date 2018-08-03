@@ -1,0 +1,74 @@
+# -*- coding: utf-8 -*-
+
+import xlrd
+import jinja2
+
+ALLOWED_DIRECTION = {'IN': "sc_in", "OUT"}
+
+SC_DATA_TYPE = []
+
+class SCModuleParams(object):
+    """Parameters within each module"""
+    def __init__(self, module):
+        # which module belongs to
+        self.module = module
+        self.params = {}
+        
+    def insert(self, name, value=0):
+        assert value >= 0
+        self.params[name] = value
+        
+    def remove(self, name):
+        del self.params[name]
+
+
+class SCPorts(object):
+    """Pin level Ports definition"""
+    def __init__(self, name, direction='IN', dtype='sc_uint', width='0'):
+        assert width > 0
+        self.name = name
+        self.direction = direction
+        if width == 1 or dtype == 'bool':
+            self.dtype = 'bool'
+            self.width = 1
+        else:
+            self.dtype = dtype
+            self.width = width
+        
+    def isBool(self):
+        return self.dtype == 'bool'
+    
+    def __str__(self):
+        d = DIRECTION[self.direction]
+        
+
+
+
+
+
+
+class SCModule(object):
+    def __init__(self, name, ports=[]):
+        self.name = name
+        self.ports = ports
+        
+        
+# hierarchical concepts
+class SigChannel(object):
+    def __init__(self, name, pins=[]):
+        self.name = name
+        self.pins = pins
+
+
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+    
+    
+    gen_sc_files()
