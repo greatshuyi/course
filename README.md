@@ -1,6 +1,6 @@
-# 学习课程列表
+# 课程列表
 
-应该参与或建立的课程
+应该参与或建立的课程。这个列表应该是自我将之前工作的内容总结出来的地方，但我现在有一个想法，等我把InteractiveStudio完成后再来写更好一些。另外是否要走Web based tool flow这个实现路径是值得深思的，毕竟现在都是Web based tools，特别是visulization方向的内容，Tabuleau也在走这条路，值得比较反思。
 
 ## 基础类	
 
