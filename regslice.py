@@ -9,7 +9,7 @@ General register slice containing PASS_SLICE, FORWARD_SLICE, REVERSE_SLICE, FULL
 #
 # from .hdl import UBool, UInt, SInt
 
-from hdl import *
+from synth.hdl import *
 
 
 @block
@@ -85,6 +85,22 @@ def reverse_slice(
     dpayload,
     width=16
 ):
+    """
+    1. Insert register on ready path from downstream to upstream.
+    2. Reverse register slice instantiates one storage buffer and ensures one cycle
+    latency with back-to-back transfer capability. To achieve the designated function,
+    it uses a combinatorial path from svalid to dvalid.
+    :param clk:
+    :param rst_n:
+    :param svalid:
+    :param sready:
+    :param spayload:
+    :param dvalid:
+    :param dready:
+    :param dpayload:
+    :param width:
+    :return:
+    """
 
     # registered ready sig on source side
     sready_r = Signal(bool(0))
@@ -95,22 +111,25 @@ def reverse_slice(
 
     @always_comb
     def _comb():
-        # source side
+        # latch enable when source valid and internal buffer empty and downstream
+        # not ready
+        pen.next = svalid and not loaded and not dready
+        # due to combinatorial path, output valid when source assert valid or
+        # internal buffer already loaded with data
+        dvalid.next = svalid or loaded
+        # if internal buffer empty, tell upstream we are ready
         sready.next = not loaded
 
     @always_ff(clk.posedge, reset=rst_n)
     def _loaded():
+        """Use a internal sig to indicating if internal buffer has been loaed"""
         if (svalid and not loaded) or dready:
             loaded.next = not loaded    # toggle loaded
 
     @always_ff(clk.posedge, reset=rst_n)
     def _seq():
-        # latch payload
         if pen:
             dpayload.next = spayload
-
-        # register ready on source side
-        sready_r.next = dready or not loaded
 
     return instances()
 
@@ -132,9 +151,8 @@ def full_slice(
 
     # uses a small fsm to control load sequence
     state_t = enum("IDLE", "ONE", "ALL")
-
-    st = Signal(state_t.IDLE)
-    nxt = Signal(state_t.IDLE)
+    st = UEnum(state_t)
+    nxt = UEnum(state_t)
 
     iready = UBool(0)
     bload = UBool(0)
@@ -168,7 +186,6 @@ def full_slice(
 
     @always_ff(clk.posedge, reset=rst_n)
     def _enable():
-        # all payload load enable sigs
         pena.next = not bload and svalid and iready
         penb.next = bload and svalid and iready
 
@@ -207,10 +224,13 @@ if __name__ == "__main__":
     dready = UBool(0)
     dpayload = UInt(width)
 
-    fwd_slice = full_slice(clk, rst_n, svalid, sready, spayload,
+    slice = reverse_slice(clk, rst_n, svalid, sready, spayload,
                               dvalid, dready, dpayload, width)
 
-    fwd_slice.convert(hdl="Verilog")
+    slice.convert(hdl="Verilog")
+
+
+
 
 
 
