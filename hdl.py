@@ -9,16 +9,53 @@ from myhdl import *
 
 
 def UBool(val=0):
+    """
+    Boolean Signal
+    :param val: initial value
+    :return: Signal of boolean
+    """
     assert val >= 0
     return Signal(bool(val))
 
 
-def UInt(width, val=0, min=None, max=None, _nrbits=0):
+def UEnum(enum):
+    """
+    Construct a Signal according to enumeration type
+    :param enum: an object of myHDL's EnumType
+    :return: Signal of Enum type
+    """
+    assert isinstance(enum, EnumType)
+
+    # find first property of EnumItemType
+    attrs = [getattr(enum, n) for n in dir(enum)]
+    items = list(filter(lambda x: isinstance(x, EnumItemType), attrs))
+    assert len(items) > 0
+
+    return Signal(items[0])
+
+
+def UInt(width, val=0, min=None, max=None):
+    """
+    Unsigned int signal
+    :param width: bit-width
+    :param val:  initial value
+    :param min:  minimum value
+    :param max:  maximu value
+    :return: Signal of modbv
+    """
     assert val >= 0 and width > 0
     return Signal(modbv(val=val, min=min, max=max)[width:])
 
 
 def SInt(width, val=0, min=None, max=None, _nrbits=0):
+    """
+    Two's complement representation of signed int
+    :param width: bit width
+    :param val:  initial value
+    :param min:  minimum value, could be less than zero
+    :param max:  maximum value, be aware on the relationship with bit width
+    :return: Signal of intbv
+    """
     assert val >= 0 and width > 0
     return Signal(intbv(val=val, min=min, max=max)[width:])
 
@@ -43,24 +80,8 @@ def AsyncReset(val, active=0):
     return ResetSignal(val=val, active=active, isasync=True)
 
 
-DummyEnumType = enum("dummy", "foobar")
-
-Enum = enum()
 
 
-def Enum(enum):
-    """
-    Construct a Signal according to enumeration type
-    :param enum:
-    :return:
-    """
-    assert isinstance(enum, type(DummyEnumType))
-
-    for p in dir(enum):
-        print(type(p))
-
-    return Signal(enum)
 
 # Semantic constructs
-
 always_ff = always_seq
