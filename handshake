@@ -1,0 +1,6 @@
+# -*- coding: utf-8 -*-
+
+"""
+Experimental Design based on http://www.async.ece.utah.edu/oldsite/publications/HansPhD.pdf
+with some practical modification.
+"""
