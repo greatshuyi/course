@@ -80,7 +80,8 @@ def AsyncReset(val, active=0):
     return ResetSignal(val=val, active=active, isasync=True)
 
 
-
+def wbin(val):
+    return bin(val, len(val))
 
 
 # Semantic constructs
