@@ -86,3 +86,5 @@ Work Course has diverted my plan. Now I'm working on myHDL's working library.
  + 神经网络
  + 深度学习
  + 对抗网络
+ 
+## for different types of NNs, please refer: http://www.asimovinstitute.org/neural-network-zoo/
