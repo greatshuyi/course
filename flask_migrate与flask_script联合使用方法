@@ -1,0 +1,170 @@
+
+# Flask-script 与Flask-migrate模块联合使用方法
+
+flask-script提供了向flask插入外部脚本的功能，包括：
++ 一个开发用的服务器
++ 一个定制的Python shell
++ 数据库操作脚本(和flask-migrate或flask-alembic联合使用)
++ 定时任务cronjobs，及其他运行在web应用之外的命令行任务
+
+## flask_script创建脚本流程方法
+
+### 1. 创建命令脚本
+
+创建一个名为manager.py的命令脚本。该脚本中必须有一个Manager类实例，该类只接受一个参数——flask的实例，或返回flask实例的工厂函数，整体框架如下所示：
+
+
+    from flask_script import Manager
+    from myapp import app 
+  
+    manager = Manager(app)
+  
+    if __name__ == '__main__':
+        manager.run()
+
+### 2. 创建命令脚本并添加命令
+
+flask-script中所用到的命令均需要手动创建，主要由两大类方式：
+
++ 1. 子类化Command类, 必须实现其中的def run(self)类函数
++ 2. 使用@Manager.command装饰器装饰函数
+
+
+    from flask_script import Manager,Server, Command
+    from myapp import app 
+  
+    manager = Manager(app)
+
+    # Add built-in runserver command
+    manager.add_command("runserver", Server())
+
+    # Custom command by subclass Command
+    class Hello1(Command):
+        def run(self):
+            print("comannd hello1 by subclass Command")
+
+
+    manager.add_command("hello1", Hello())
+
+    # Custom command by decorator
+    @manager.command
+    def hello2():
+        print("command hello2 by decorator")
+
+
+  
+    if __name__ == '__main__':
+        manager.run()
+
+
+### 3. 运行方法
+
+创建好脚本并添加命令后即可运行。进入manager所在层次目录（通常该层次与flask应用顶层同级），直接命令行执行，以上一步建立好的脚本为例，我们可以调用如下命令：
+
+    # run command hello1
+    python manager.py hello1
+
+    # run command hello2
+    python manager.py hello2
+
+    # run built-in command server
+    python manager.py runserver
+
+
+Which resemble with django
+
+
+### 4. 与flask-migrate的连用方法
+
+一般而言将flask-migrate与flask-script联合使用一个成熟度产品化方法（开发调试阶段也非常好用），两者一个简单的联合使用方法如下：
+
+    # manager.py
+    
+    from flask_script import Manager
+    from flask_migrate import Migrate, MigreateCommand
+    from myapp import app
+    from myapp.database import database as db  # in fact, we need flask_sqlalchemy
+
+    # 1. 注意先设置flask_migrate
+    
+    # a. 注意此处的app.config中应该包含sqlalchemy的连接路径，如果没有则需要
+    # 为app.config中加入['SQLALCHEMY_DATABASE_URI']的设置
+    # b. 导入flask_sqlalchemy中的SQLAlchemy实例，并与app一起绑定到Migrate上
+
+    migrate = Migrate(app, db)
+
+    # alternative
+    # migrate = Migrate()
+    # migrate.init_app(app, db)
+
+    # 2. 将MigrateCommand加入到flask_script中
+
+    manager = Manager(app)
+
+    manager.add_command("db", MigrateCommand)
+  
+    if __name__ == '__main__':
+        manager.run()
+
+#### 4.1 使用flask-migrate
+
+完成上述内容以后就可以执行如下常用命令了（完整命令请查看flask_migrate文档）
+
++ **python manager.py db init**
+
+这个命令将会新建一个名字为migrations的文件夹，并且记录一个数据库版本号，一份保留在migrations中，一份保存在数据库中(新建一张名字为alembic_version的表来保存)。 实际上Migrations文件夹就是一个标准的Alembic数据库迁移文件夹，其内容与用法则必须参考Alembic文档了。本文档见4.2节。
+
+
++ **python manager.py db migrate**
+
+按照迁移脚本执行迁移工作，注意迁移脚本必须开发者手写
+
++ **python manager.py db upgrade**
+
+按照脚本执行数据库升级工作
+
+
+#### 4.2 迁移脚本编写与环境设置
+
+执行了上一节所述的db init命令会生成如下一个目录结构：
+
+    migrations
+        |----versions           # 目录，当前记录的所有数据库版本以及对应的python操作文件
+        |----README             
+        |----alembic.ini        # alembic的配置信息
+        |----env.py             # 环境配置，其中target_metadata字段很重要
+        |----script.py.mako     # 标准迁移脚本模板
+
+
+而是用Alembic的核心就是改写其中的内容。
+
+##### 4.2.1 更新env.py
+
+
+
+
+
+##### 4.2.2 更新versions下的数据库操作文件
+
+
+
+
+
+其中version目录对应的python文件框架如下：
+
+    revision = '27c6a30d7c24'
+    down_revision = None
+ 
+    from alembic import op
+    import sqlalchemy as sa
+ 
+    def upgrade():
+        pass
+     
+    def downgrade():
+        pass
+
+
+
+
+
