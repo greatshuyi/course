@@ -87,4 +87,6 @@ Work Course has diverted my plan. Now I'm working on myHDL's working library.
  + 深度学习
  + 对抗网络
  
+## TVM现在越来越成熟了，之前为高速安检写了一些内容，实时性还不错，后续添加
+ 
 ## for different types of NNs, please refer: http://www.asimovinstitute.org/neural-network-zoo/
