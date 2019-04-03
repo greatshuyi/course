@@ -7,6 +7,78 @@ https://www.csl.cornell.edu/courses/ece4750/2016f/index.html
 Very good links, must ref to it
 http://home.deib.polimi.it/silvano/aca-milano-schedule.htm
 
-# RISC-V
+### RISC-V
 https://github.com/riscv
+
+
+## RTL toolset
++ Tool to generate register RTL, models, and docs using SystemRDL or JSpec input
+https://github.com/Juniper/open-register-design-tool
+
++ Video and Image Processing
+cuongtvee/Video-and-Image-Processing-Design-Using-FPGAs
+https://github.com/cuongtvee/Video-and-Image-Processing-Design-Using-FPGAs
+
+
+## IP Pools
++ For most ip/core's resources, goto FreeCores
+https://github.com/freecores
+
++ For some small and NoC .etc, you can consult these repos
+https://github.com/satputeaditya?tab=repositories
+
+
+### Cryptography
+
+#### Important Repository
++ For most of Cryptography IPs, consult here
+https://github.com/secworks?tab=repositories
+
+#### NIST standard
+
+##### AES
+
++ [GOOD]Verilog implementation of the symmetric block cipher AES (Advanced Encryption Standard) as specified in NIST FIPS 197. 
+This implementation supports 128 and 256 bit keys.
+https://github.com/secworks/aes
+
++ [GOOD]AES加密解密算法的Verilog实现
+https://github.com/mematrix/AES-FPGA
+
++ CBC block cipher mode of operation for AES
+https://github.com/secworks/cbc
+
++ aes-128_pipelined_encryption
+https://github.com/freecores/aes-128_pipelined_encryption
+
+
+
+##### OSSCV
+
++ 国密算法sm1，sm2，sm3，sm4算法源码
+https://github.com/liuqun/gmalg
+
++ 国家商用加密算法 SMx（SM2,SM3,SM4）
+https://github.com/NEWPLAN/SMx
+
++ 国密SM9算法测试数据
+https://github.com/zweib730/SM9-misc
+
+
+## Misc
++ HARDWARE TROJAN DETECTION
+https://github.com/allen9408/Trojan
+
+
+## Blockchain
+
++ 区块链、加密学货币相关技术专利，主要来源于美国、中国、欧洲、日韩。
+https://github.com/blockchain-university/patent
+
+
+
+
+
+
+
 
