@@ -14,6 +14,8 @@
   
 
 ##### google的 vector processor patent总结：
++ US20180260220A1 Vector processing unit
+
 
 + US10216705B2 Permuting in a matrix-vector processor
   Invertor:
@@ -30,3 +32,21 @@
 + GB2564853A Vector interleaving in a data processing apparatus
   Inventor: Eyole MbouJohn Stephens Nigel Current 
   Assignee: Arm Ltd
+
+CN107133018A Instruction for executing GROESTL hash
+
+US9268569B2 Branch misprediction behavior suppression on zero predicate branch mispredict
+
+US20180225255A1  Hardware processors and methods for tightly-coupled heterogeneous computing
+
+CN102053948B 在单指令多数据多核处理器架构上转置矩阵的方法和系统
+
+
+
+### Paper
+
+1 Vector ISA Extension for sparse Matrix-vector multiplication
+2 Fast and Small Short Vector SIMD Matrix Multiplication Kernels for the Synergistic Processing Element of the CELL Processor
+3 Optimizing matrix multiplication for a short-vector SIMD architecture – CELL processor
+4 High-Performance Matrix-Matrix Multiplications of Very Small Matrices
+5 A High Memory Bandwidth FPGA Accelerator for Sparse Matrix-Vector Multiplication
