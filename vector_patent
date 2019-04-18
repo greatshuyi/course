@@ -11,6 +11,11 @@
 + US20170090928A1 Vector permutation circuit and vector processor
   Inventor Yunbi CHENKai Hu Current 
   Assignee Huawei Technologies Co Ltd
+
+
++ US20180225255A1 Hardware processors and methods for tightly-coupled heterogeneous computing
+  Inventor:
+  Assignee:
   
 
 ##### google的 vector processor patent总结：
@@ -50,3 +55,28 @@ CN102053948B 在单指令多数据多核处理器架构上转置矩阵的方法�
 3 Optimizing matrix multiplication for a short-vector SIMD architecture – CELL processor
 4 High-Performance Matrix-Matrix Multiplications of Very Small Matrices
 5 A High Memory Bandwidth FPGA Accelerator for Sparse Matrix-Vector Multiplication
+
+Fast and Small Short Vector SIMD Matrix Multiplication Kernels for the Synergistic Processing Element of the CELL Processor
+
+SPU & SPE单元特点：
+
+The core of the SPE is the Synergistic Processing Unit (SPU). 
+The SPU [39–41] is a RISC-style SIMD processor feturing 128 general purpose registers and 32-bit fixed length instruction encoding.
+SPU includes instructions that perform single precision floating point, integer arithmetic, logicals, loads, stores, compares and branches. 
+SPU includes nine execution units organized into two pipelines, referred to as the odd and even pipeline.
+Instructions are issued in-order and two independent instructions can be issued simultaneously if they belong to different pipelines.
+SPU executes code form the Local Store and operates on data residing in the Local Store, which is a fully pipelined, single-ported, 256 KB of Static Random Access Memory (SRAM). 
+Load and store instructions are performed within local address space, which is untranslated, unguarded and noncoherent with respect to the system address space. 
+Loads and stores transfer 16 bytes of data between the register file and the Local Store, and complete with fixed six-cycle delay and without exception.
+SPU does not perform hardware branch prediction and omits branch history tables. Instead, the SPU includes a Software Managed Branch Target
+Buffer (SMBTB), which holds a single branch target and is loaded by software. A mispredicted branch flushes the pipelines and costs 18 cycles. A correctly
+hinted branch can execute in one cycle. Since both branch hint and branch instructions belong to the odd pipeline, proper use of SMBTB can result in zero
+overhead from branching for a compute-intensive loop dominated by even pipeline instructions
+
+_GEMM:  general matrix-matrix multiplication
+_POTRF: Cholesky factorization
+_SYTRF: LDLT factorization
+_GEQRF: QR factorization
+_GEBRD: Bidiagonal reduction
+_SYRK:  symmetric rank k update
+
