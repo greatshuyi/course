@@ -1,0 +1,32 @@
+SLAM resources
+
+
+
+### Python related
+
+MichaelGrupp/evo[https://github.com/MichaelGrupp/evo]
+Python package for the evaluation of odometry and SLAM
+
+fangchangma/sparse-to-dense.pytorch[https://github.com/fangchangma/sparse-to-dense.pytorch]
+ICRA 2018 "Sparse-to-Dense: Depth Prediction from Sparse Depth Samples and a Single Image" (PyTorch Implementation)
+
+uoip/stereo_ptamh[ttps://github.com/uoip/stereo_ptam]
+Python implementation of SLAM algorithm Stereo-PTAM
+
+vatsan/slam[https://github.com/vatsan/slam]
+An implementation of particle filtering algorithm for simultaneous localization and mapping (SLAM) in autonomous robots.
+
+knagara/SLAMwithCameraIMUforPython[https://github.com/knagara/SLAMwithCameraIMUforPython]
+SLAM with Camera and IMU (Python)
+
+hlzz/DeepMatchVO[https://github.com/hlzz/DeepMatchVO]
+Implementation of ICRA 2019 paper: Beyond Photometric Loss for Self-Supervised Ego-Motion Estimation
+
+iitmcvg/CNN_SLAM[https://github.com/iitmcvg/CNN_SLAM]
+CNN SLAM implementation of https://arxiv.org/abs/1704.03489
+
+spillai/pybot[https://github.com/spillai/pybot]
+Research tools for autonomous systems in Python
+
+qixuxiang/mask_rcnn_ros
+The ROS Package of Mask R-CNN for Object Detection and Segmentation
