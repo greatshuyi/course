@@ -13,11 +13,14 @@ ICRA 2018 "Sparse-to-Dense: Depth Prediction from Sparse Depth Samples and a Sin
 uoip/stereo_ptamh[ttps://github.com/uoip/stereo_ptam]
 Python implementation of SLAM algorithm Stereo-PTAM
 
+uoip/rgbd_ptam[https://github.com/uoip/rgbd_ptam]
+Python implementation of RGBD-PTAM algorithm
+
 vatsan/slam[https://github.com/vatsan/slam]
 An implementation of particle filtering algorithm for simultaneous localization and mapping (SLAM) in autonomous robots.
 
 knagara/SLAMwithCameraIMUforPython[https://github.com/knagara/SLAMwithCameraIMUforPython]
-SLAM with Camera and IMU (Python)
+SLAM with Camera and IMU(Python)
 
 hlzz/DeepMatchVO[https://github.com/hlzz/DeepMatchVO]
 Implementation of ICRA 2019 paper: Beyond Photometric Loss for Self-Supervised Ego-Motion Estimation
@@ -30,3 +33,16 @@ Research tools for autonomous systems in Python
 
 qixuxiang/mask_rcnn_ros
 The ROS Package of Mask R-CNN for Object Detection and Segmentation
+
+HeYijia/vio_data_simulation[https://github.com/HeYijia/vio_data_simulation]
+Generate imu data and feature in camera frame. You can use this data to test your VINS.
+
+
+patrickelectric/SLAM_Qt[https://github.com/patrickelectric/SLAM_Qt]
+small SLAM simulator to study "SLAM for dummies"
+
+krrish94/DeepVO[https://github.com/krrish94/DeepVO]
+Implementation of DeepVO (ICRA 2017)
+
+utiasSTARS/pyslam[https://github.com/utiasSTARS/pyslam]
+Non-linear least-squares SLAM in Python using scipy and numpy. Modelled after Google's Ceres solver.
