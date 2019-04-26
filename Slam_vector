@@ -16,6 +16,9 @@ Python implementation of SLAM algorithm Stereo-PTAM
 uoip/rgbd_ptam[https://github.com/uoip/rgbd_ptam]
 Python implementation of RGBD-PTAM algorithm
 
+MagicLeapResearch/SuperPointPretrainedNetwork[https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork]
+PyTorch pre-trained model for real-time interest point detection, description, and sparse tracking (https://arxiv.org/abs/1712.07629)
+
 vatsan/slam[https://github.com/vatsan/slam]
 An implementation of particle filtering algorithm for simultaneous localization and mapping (SLAM) in autonomous robots.
 
