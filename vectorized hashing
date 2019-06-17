@@ -1,0 +1,127 @@
+
+
+
+### Vectorized Data Movement Primitives
+
+It is imperative SIMD/Vector Processor supports Vectorized data movement primitives classified as follow:
+
+ + selective load: selects data a from contiguous memory (starting at an offset) and copies it into SIMD lanes specified by a bitmask
+ + selective store: Selective Store is the inverse operation of Selective Load, which copies data from SIMD lanes into contiguous memory by a bitmask
+ + gather: selects data from discontiguous memory and copies it into SIMD lanes while a separate SIMD register provides the pointers to data elements
+ + Scatter is the inverse operations of Gather which copies data from SIMD lanes to discontiguous memory
+ 
+Vector logical operation:
+ 
+ + shuffle/permutaion
+ + rorate
+ 
+
+
+ 
+Vector-Scalar:
+
+ + extract: extract an individual element from a vector register by given index
+ 
+ 
+For those whom only provides partial of these above primitives, [1] emulate these primitives using basic SIMD permutation instructions at a small performance penalty
+
+
+Efficient SIMD Vectorization for Hashing in OpenCL: can be found on github.
+
+
+
+### Hash冲突解决方法
+
+
+#### Open Addressing
+
+某种探查(亦称探测)技术在散列表中形成一个探查(测)序列，沿此序列逐个单元地查找，直到找到给定的关键字，或者碰到一个开放的地址(即该地址单元为空)为止。
+若要插入，在探查到开放的地址，则可将待插入的新结点存人该地址单元。查找时探查到开放的地址则表明表中无待查的关键字，即查找失败。探查序列的构造该方法
+可以构造如下：
+
+$$H_i = (H(key) + d_i) % m, m = 1, 2, ..., M, M为slot数量$$
+
+对于上述探测序列，依据$$d_i$$构造方式的不同，可以细分为如下几种类型：
+
+ + 线性再探测：d_i = 1, 2, 3, ... m-1， 即顺序查看表中下一单元;
+ + 二次再探测：d_i = 1^2, -1^2, 2^2, -2^2, ... k^2, -k^2; k <= m/2;
+ + 随机再探测：d_i = random(i);
+
+用开放定址法建立散列表时，必须严格遵循如下内容：
+
+ + 建表前须将表中所有单元(更严格地说，是指单元中存储的关键字)置空。
+ + 空单元的表示与具体的应用相关。
+ 
+ 
+#### Open hashing
+
+也是再散列方法，核心是构造一个hash函数序列来探查各个slot
+
+$$ H_i = RH_i(k_i), i = 1, 2, ...
+
+知道不产生冲突（可以思考在Vector下面是不是更快？但这个时候hash函数的设计极其重要，变成了该方法的核心）
+
+
+#### Chaining
+
+链式散列，每个slot后面跟一个链表，灵活通用。
+
+
+
+### 向量化（SIMD）Hashing 方法
+
+对成功的向量化Hash操作而言，十分有必要从宏观上理解一下Hashing的各个步骤：
+
+ + hash value computation
+ + hash-table position lookup and possibly insertion
+ + modify tuples stored in hash table
+
+
+#### Vectorized hash function
+这个方法本质上就是算法的向量化了。
+
+
+#### Vectorized Probing in Hash Tables(Open addressing Exmplery)
+
+Key idea: use a SIMD register (k) to probe multiple keys(ki) at once. 
+
+
+ + 1. Initial the collision mask C to all False
+ + 2. load probe keys(ki) into a SIMD register(k) using selective load and collision mask register C. (for those unmatched key on previous
+ iteration, leave them untouched)
+ + 3. compute the hash value hi of ki and store the result in a seperate register h with mask c(leave previous unmatched keys' hash value
+ unaltered in order to perform collision resolution)
+ + 4. use the hash value as position of a gather operation to load buckets from hash table into a anther register k'
+ + 5. compare original key k with k' to produce a collision mask c(element-wise equal ops), for each key, there are three possible cases
+  
+  + the bucket contains the key,
+  + the bucket are empty,
+  + the bucket's key and probe key are different
+  
+  for case 1 and 2, replace the matched key with a new key; for case 3 leave the probe key unchanged and alter its correspondant hash
+  value in register h according to collision resolution mechanism, all of above procedures should be masked by mask register c
+ 
+ + 6. updated hash value register h accroding to collsion mask and collision resolution mechanism(open addressing, 
+ + 7. repeat step 1 ~ 6
+ 
+ Additional comments should be noted here:
+  + To perform hash join, we need to write back payload to an output buffer with selective store right after key comparison
+  + To handle empty buckets, we actually need to compute three bitmask: c' indicates found keys, c'' indicate empty buckets, c''' indicates
+  collision.(which means step 4 must be able to generate a special indicator to siginify an empty slot, step 5 must compute other tow masks)
+  
+
+### Cuckoo Hashing
+
+Cuckoo hashing是2004年之后兴起的一种hash方法，本质上是开地址散列的一种
+
+
+  
+[1] Orestis Polychroniou, Arun Raghavan, and Kenneth A Ross. 2015. Rethinking 
+SIMD vectorization for in-memory databases. In ACM SIGMOD. 1493–1508 [Very important]
+
+[2] Orestis Polychroniou, Arun Raghavan, and Kenneth A Ross. Vectorized Bloom Filters for Advanced SIMD Processors. [Important]
+http://www.cs.columbia.edu/~orestis/vbf.c
+
+[3] Efficient SIMD Vectorization for Hashing in OpenCL[Current article based on it]
+
+[4] Improving Main Memory Hash Joins on Intel Xeon Phi Processors: An Experimental Approach
