@@ -29,6 +29,22 @@ For those whom only provides partial of these above primitives, [1] emulate thes
 Efficient SIMD Vectorization for Hashing in OpenCL: can be found on github.
 
 
+### Hash function 回顾
+
+首先列举一下现代的非加密hash算法
+
+ + 2006 loopup3 Bob jenkins
+ + 2008 MurmurHash, Austin Appleby
+ + 2010 Spooky Hash, Bob jenkins
+ + 2011 CityHash, google
+ + 2012 xxhash Y.C.
+ + 2014 FarmHash google
+ 
+ 
+ 
+ 
+
+
 
 ### Hash冲突解决方法
 
