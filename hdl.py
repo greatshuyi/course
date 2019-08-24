@@ -6,6 +6,7 @@ Shim layer atop myHDL
 from myhdl import *
 
 # from myhdl import Signal, modbv, intbv, ResetSignal, always_seq
+from myhdl_lib import assign
 
 
 def UBool(val=0):
@@ -27,12 +28,9 @@ def UEnum(enum):
     assert isinstance(enum, EnumType)
 
     # find first property of EnumItemType
-    attrs = [getattr(enum, n) for n in dir(enum)]
-    items = list(filter(lambda x: isinstance(x, EnumItemType), attrs))
-    assert len(items) > 0
-
-    return Signal(items[0])
-
+    attrs = [n for n in enum.__dict__.values() if isinstance(n, EnumItemType)]
+    assert len(attrs) > 0
+    return Signal(attrs[0])
 
 def UInt(width, val=0, min=None, max=None):
     """
@@ -80,9 +78,20 @@ def AsyncReset(val, active=0):
     return ResetSignal(val=val, active=active, isasync=True)
 
 
-def wbin(val):
-    return bin(val, len(val))
-
+def Clock(val):
+    return UBool(val)
 
 # Semantic constructs
 always_ff = always_seq
+
+__all__ =[
+    'UBool',
+    'UEnum',
+    'UInt',
+    'SInt',
+    'SyncReset',
+    'AsyncReset',
+    'Clock',
+    'always_ff',
+    'assign'
+]
