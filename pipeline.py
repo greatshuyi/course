@@ -7,110 +7,90 @@ from myhdl import (
 from myhdl import delay, StopSimulation, Simulation
 
 from pipeline.hdl import *
+from pipeline.lib.mem import ssrom
 
+try:
+    from pipeline.sim import recv as downstream
+except:
 
-@block
-def ssrom(clk, addr, dout, CONTENT):
-    """ CONTENT == tuple of non-sparse values
-    """
+    @block
+    def downstream():
 
-    @always(clk.posedge)
-    def read():
-        dout.next = CONTENT[int(addr)]
+        def recv():
+            pass
 
-    return read
-
-
-@block
-def DelayLine(clk, rst_n, din, dout, WIDTH=1, TAPS=1):
-
-    """
-    Parameterized Synchronous Dealy Line
-    :param clk:
-    :param rst_n:
-    :param din:
-    :param dout:
-    :param WIDTH:
-    :param TAPS:
-    :return:
-    """
-
-    taps = [UInt(WIDTH) for _ in range(TAPS)]
-
-    @always_ff(clk.posedge, reset=rst_n)
-    def delay_line():
-        for i in range(TAPS):
-            if i == 0:
-                taps[i].next = din
-            else:
-                taps[i].next = taps[i-1]
-
-    @always_comb
-    def output():
-        dout.next = taps[TAPS-1]
-
-    return instances()
-
-
-@block
-def down_stream(clk, rst_n, enable,
-                # upstream
-                ivld, chk_tlb, din,
-                # feedback
-                stop,
-                # stage out
-                dout
-                ):
-
-    @always_ff(clk.posedge, reset=rst_n)
-    def recv():
-        if enable and ivld:
-            dout.next = din
-            if chk_tlb:
-                stop.next = True if not stop else False
-            else:
-                if stop:
-                    stop.next = False
-                else:
-                    stop.next = True if din % 2 != 0 and din > 3 else False
-
-    return instances()
+        return instances()
 
 
 POT_STATE = enum('IDLE', 'RD', 'PEND')
 
 
 @block
-def upstream(clk, rst_n, enable,
-             # upstream input
-             start, index, amount, base,
-             # output sram
-             addr, ren,
-             # stage out
-             chk_tlb, base_va, trans_cnt, ovld,
-             # downstream feedback
-             stop,
-             # monitor
-             st, nxt,
-             # Must have
-             STATE
-             ):
+def ram_decoder(index, offset):
+    pass
 
-    # Sigs and Registers
-    trans_cnt = UInt(len(amount))
-    nxt_trans_cnt = UInt(len(amount))
 
-    nxt_idx = UInt(len(addr))
-    idx = UInt(len(addr))
 
+@block
+def pot_fsm(clk, rst_n, enable,
+            # upstream input, start is just a valid
+            flush, start, index, offset, amount, base,
+            # combinatorial SRAM input control
+            cen, ren, addr,
+            # pipe SRAM output mux control
+            select,
+            # pipe cmd
+            ovld, ostart, odrop, oflush, ourgent,
+            # pipe registers data
+            base_va,
+            # pipe ctrl
+            cnt,
+            # downstream feedback
+            stop,
+            # monitor
+            st, nxt,
+            # Must have
+            STATE
+            ):
+    # =============================================
+    # 
+    # =============================================
+    OFFSET_INDEX_MAX = 14
+    OFFSET_ENTRY_MAX = 64
+
+    # =============================================
+    # Sigs and pipe registers
+    # =============================================
     pot_start = UBool(0)
+
+    ovld = UBool(0)                         # pipe command, ovld act as valid
+    ostart = UBool(0)                       # pipe command, downstream restart
+    odrop = UBool(0)                        # pipe command, downstream drop current
+    oflush = UBool(0)                       # pipe command, downstream flush
+    ourgent = UBool(0)                      # pipe QoS for downstream
+
+    cnt = UInt(len(amount))                 # pipe register of amount counter
+    idx = UInt(len(addr))                   # pipe register of index
+    oft = UInt(len(offset))                 # pipe register of offset
+
+    nxt_cnt = UInt(len(amount))
+    nxt_idx = UInt(len(addr))
+    nxt_oft = UInt(len(offset))
+    nxt_idx = UInt(len(addr))
+    nxt_cnt = UInt(len(amount))
+
+    pipe_timer = UInt(11, 1024)
+
+    # =============================================
+    # pipeline control
+    # =============================================
 
     # FSM start condition
     @always_comb
     def fsm_start():
         pot_start.next = start and amount != 0
 
-        # STATE FSM
+    # pipe FSM
     @always_ff(clk.posedge, reset=rst_n)
     def state():
         if enable:
@@ -120,28 +100,34 @@ def upstream(clk, rst_n, enable,
     def state_transition():
         nxt.next = POT_STATE.IDLE
         if st == POT_STATE.IDLE:
-            if pot_start:
+            if flush:
+                nxt.next = POT_STATE.IDLE
+            elif pot_start:
                 nxt.next = POT_STATE.RD
             else:
                 nxt.next = POT_STATE.IDLE
 
         elif st == POT_STATE.RD:
-            if pot_start:
+            if flush:
+                nxt.next = POT_STATE.IDLE
+            elif pot_start:
                 nxt.next = POT_STATE.RD
             else:
                 if stop:
-                    if nxt_trans_cnt == 0:
+                    if nxt_cnt == 0:
                         nxt.next = POT_STATE.IDLE
                     else:
                         nxt.next = POT_STATE.PEND
                 else:
-                    if nxt_trans_cnt == 0:
+                    if nxt_cnt == 0:
                         nxt.next = POT_STATE.IDLE
                     else:
                         nxt.next = POT_STATE.RD
 
         elif st == POT_STATE.PEND:
-            if pot_start:
+            if flush:
+                nxt.next = POT_STATE.IDLE
+            elif pot_start:
                 nxt.next = POT_STATE.RD
             elif stop:
                 nxt.next = POT_STATE.PEND
@@ -150,63 +136,84 @@ def upstream(clk, rst_n, enable,
         else:
             nxt.next = POT_STATE.IDLE
 
-    # pipe register control
-    @always_ff(clk.posedge, reset=rst_n)
-    def pipe_control():
+    # =============================================
+    # pipeline payload/register control
+    # =============================================
+
+    @always(clk.posedge, reset=rst_n)
+    def pipe_registers():
         if enable:
             idx.next = nxt_idx
-            chk_tlb.next = True if pot_start else False
-            if pot_start:
-                base_va.next = base
-            # ovld.next = True if start or st != POT_STATE.IDLE else False
-            ovld.next = True if nxt != POT_STATE.IDLE else False
-
-    @always_ff(clk.posedge, reset=rst_n)
-    def cnt_control():
-        if enable:
-            trans_cnt.next = nxt_trans_cnt
+            oft.next = nxt_oft
+            cnt.next = nxt_cnt
 
     @always_comb
-    def cnt_ctrl():
-        if pot_start:
-            nxt_trans_cnt.next = amount
+    def pipe_control():
+        if flush:
+            nxt_cnt.next = 0
+        elif pot_start:
+            nxt_cnt.next = amount
         else:
             if not stop:
-                nxt_trans_cnt.next = trans_cnt - 1 if trans_cnt != 0 else 0
+                nxt_cnt.next = cnt - 1 if cnt != 0 else 0
             else:
-                nxt_trans_cnt.next = trans_cnt
+                nxt_cnt.next = cnt
 
-    @always_comb
-    def mop_ctrl():
-        if pot_start:
+        if flush:
+            nxt_oft.next = 0
+        elif pot_start:
+            nxt_oft.next = offset
+        else:
+            if not stop:
+                nxt_oft.next = 0 if oft == OFFSET_INDEX_MAX else oft + 1
+            else:
+                nxt_oft.next = idx
+
+        if flush:
+            nxt_idx.next = 0
+        elif pot_start:
             nxt_idx.next = index
         else:
             if not stop:
-                nxt_idx.next = idx + 1
+                nxt_idx.next = OFFSET_ENTRY_MAX if idx == OFFSET_ENTRY_MAX else idx + 1
             else:
                 nxt_idx.next = idx
+                       
+    @always(clk.posedge, reset=rst_n)
+    def va_register():
+        if flush:
+            base_va.next = 0
+        else:
+            if pot_start:
+                base_va.next = base
+            else:
+                base_va.next = base_va
 
-        ren.next = True if nxt != POT_STATE.IDLE else False
-        # if pot_start:
-        #     ren.next = True
-        # else:
-        #     if st == POT_STATE.RD:
-        #         ren.next = True
-        #     else:
-        #         ren.next = False
+    # =============================================
+    # pipeline command controls
+    # =============================================
+    @always(clk.posedge, reset=rst_n)
+    def pipe_cmd_control():
+        pass
 
+    # =============================================
+    # SRAM controls
+    # =============================================
     @always_comb
-    def addr_gen():
-        addr.next = 0
-        addr.next = nxt_idx
+    def ram_control():
+        pass
 
-    return instances()
+    # =============================================
+    # pipeline monitor
+    # =============================================
+    
+
 
 
 if __name__ == "__main__":
 
     @block
-    def stall_top():
+    def pot_top():
 
         clk = Clock(0)
         rst_n = AsyncReset(0)
@@ -236,17 +243,23 @@ if __name__ == "__main__":
         mnxt = UEnum(POT_STATE)
 
         # Instance
-        OFFSET_TABLE = [i+1 for i in range(2**len(index))]
-        ram = ssrom(clk=clk, ren=ren, addr=addr,
-                    dout=offset, CONTENT=OFFSET_TABLE)
+        OFFSET_TABLE1 = [i+1 for i in range(2**len(index))]
+        ram1 = ssrom(clk=clk, ren=ren, addr=addr,
+                     dout=offset, CONTENT=OFFSET_TABLE)
+        ram2 = ssrom(clk=clk, ren=ren, addr=addr,
+                     dout=offset, CONTENT=OFFSET_TABLE)
+        ram3 = ssrom(clk=clk, ren=ren, addr=addr,
+                     dout=offset, CONTENT=OFFSET_TABLE)
+        ram4 = ssrom(clk=clk, ren=ren, addr=addr,
+                     dout=offset, CONTENT=OFFSET_TABLE)
 
-        up = upstream(clk=clk, rst_n=rst_n,
+        pot = pot_fsm(clk=clk, rst_n=rst_n,
                       # upstream input
                       enable=enable, base=base, index=index, start=start, amount=amount,
                       # output sram
                       addr=addr, ren=ren,
                       # stage out
-                      chk_tlb=chk_tlb, base_va=base_va, trans_cnt=trans_cnt, ovld=vld,
+                      ostart=chk_tlb, base_va=base_va, cnt=trans_cnt, ovld=vld,
                       # downstream feedback
                       stop=stop,
                       # for monitor
@@ -254,16 +267,16 @@ if __name__ == "__main__":
                       STATE=POT_STATE
                       )
 
-        downstream = down_stream(clk=clk, rst_n=rst_n, enable=enable,
-                                 # upstream
-                                 ivld=vld,
-                                 chk_tlb=chk_tlb,
-                                 din=offset,
-                                 # feedback
-                                 stop=stop,
-                                 # stage out
-                                 dout=offseto,
-                                 )
+        recv = downstream(clk=clk, rst_n=rst_n, enable=enable,
+                          # upstream
+                          ivld=vld,
+                          chk_tlb=chk_tlb,
+                          din=offset,
+                          # feedback
+                          stop=stop,
+                          # stage out
+                          dout=offseto,
+                          )
 
         cycle_list = [30 for _ in range(4)]
 
@@ -297,9 +310,8 @@ if __name__ == "__main__":
         return instances()
 
 
-    tb = stall_top()
+    tb = pot_top()
     tb.config_sim(trace=True)
     tb.run_sim()
-
 
 
