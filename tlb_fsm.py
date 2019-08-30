@@ -300,7 +300,52 @@ def tlb_ctrl(
         else:
             pass
 
+    return instances()
 
+ // TLB response
+utlb_resp_fill_vld			IN	1
+utlb_resp_fill_va			IN	[48:12]
+utlb_resp_fill_pa			IN	[40:12]
+utlb_resp_fill_page_size	IN	[2:0]
+utlb_resp_fill_shared		IN	1
+utlb_resp_flush				IN	1
+utlb_resp_tid				IN	1
+utlb_resp_pbha				IN	2
+utlb_resp_drop				IN	1
+utlb_resp_prf				IN	1
+
+
+// TLB request
+utlb_req_vld				OUT	1
+utlb_req_pgt				OUT	1
+utlb_req_va					OUT	[48:12]
+utlb_req_pa					OUT	[40:2]
+utlb_req_shared				OUT	1
+utlb_req_spd				OUT	[1:0]
+utlb_req_typ				OUT	[1:0]
+utlb_req_hash_pc			OUT	[10:0]
+utlb_req_page_size			OUT	[2:0]
+utlb_req_dir				OUT	1
+utlb_req_delta_hi			OUT	[15:12]
+utlb_req_st					OUT	1
+utlb_req_tid				OUT	1
+utlb_req_prf				OUT	1
+
+
+ple_req_vld_e4				OUT	1
+ple_req_dst					OUT	1
+ple_req_keep				OUT	1
+ple_req_typ					OUT	1
+ple_req_prf					OUT	1
+ple_req_pa					OUT	[48:0]
+ple_req_shareable			OUT	[1:0]
+ple_reg_mair_e4				OUT	[4:0]
+ple_req_va1312				OUT	[1:0]
+ple_req_hash_tag			OUT	[7:0]
+ple_req_rid					OUT	[7:0]
+ple_req_accept				IN	1
+		
+ple_req_send_finish			IN	1
 
 
 
