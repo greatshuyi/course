@@ -126,14 +126,20 @@ def tlb_ctrl(
 
 
     # act as uuTLB entry
-    page_size=UInt(3)
+    uutlb_vld = UBool(0)
+    uutlb_page_size=UInt(3)
+    uutlb_va = UInt(len(iva), 0)
+    uutlb_pa = UInt(len(pa), 0)
+
 
 
     st = UEnum(TLB_STATE)
     nxt = UEnum(TLB_STATE)
 
-
     prf_sync = UBool(0)
+
+    tlb_timer = UInt(9, max=511)
+    tlb_timeout = UBool(0)
 
 
     # =============================================
@@ -144,11 +150,16 @@ def tlb_ctrl(
     def glb_ctrl():
         tlb_start.next = istart or ooo_flush
         tlb_drop.next = ivld and idrop
+        tlb_timeout.next = st == TLB_STATE.WAIT and tlb_timer == 511)
+        prf_sync.next = prf_vld and (not prf_fault and prf_match)
+
+
 
     @always_ff(clk.posedge, reset=rst_n)
     def fsm_state():
         if enable:
             st.next = nxt
+
 
     @always_comb
     def fsm_transition():
@@ -171,100 +182,96 @@ def tlb_ctrl(
         elif st == TLB_STATE.WAIT:
             if flush:
                 nxt.next = TLB_STATE.IDLE
-            elif tlb_start or tlb_drop:
+            elif tlb_start or tlb_timeout or ooo_flush:
                 nxt.next = TLB_STATE.TLB
             else:
-                if not prf_vld:
-                    nxt.next = TLB_STATE.WAIT
+                if prf_sync:
+                    nxt.next = TLB_STATE.SYNC
                 else:
-                    if prf_fault or not prf_match:
-                        nxt.next = TLB_STATE.TLB
-                    else:
-                        nxt.next = TLB_STATE.SYNC
+                    nxt.next = TLB_STATE.WAIT
 
         elif st == TLB_STATE.SYNC:
-            if tlb_start:
+            if flush:
+                nxt.next = TLB_STATE.IDLE
+            elif tlb_start:
                 nxt.next = TLB_STATE.TLB
-            elif tlb_drop:
-                nxt.next = TLB_STATE.TLB if cross_page else TLB_STATE.SYNC
             else:
-                nxt.next = TLB_STATE.SYNC
+                nxt.next = TLB_STATE.TLB if cross_page else TLB_STATE.SYNC
                 
         else:
             nxt.next = TLB_STATE.IDLE
 
-        # FSM output backpressure
-        @always_ff(clk.posedge, reset=rst_n)
-        def back_pressure():
-            if flush:
-                stall.next = False
-            elif tlb_start:
-                stall.next = True
+    # timer
+    @always_ff(clk.posedge, reset=rst_n)
+    def monitor():
+        if enable:
+            if (st == TLB_STATE.TLB or st == TLB_STATE.WAIT) and nxt == TLB_STATE.WAIT:
+                tlb_timer.next = 0 if tlb_timer == 511 else tlb_timer + 1
             else:
-                pass
+                tlb_timer.next = 0
 
-        # =============================================
-        # uuTLB controls
-        # =============================================
+    # =============================================
+    # uuTLB controls
+    # =============================================
 
-        # Remember: incoming prefetch response always compared to va not prev_va!!!
-        @always_comb
-        def uutlb():
-            if flush:
-                replace.next = False
-            elif tlb_start:
-                replace.next = False
+    # Remember: incoming prefetch response always compared to va not prev_va!!!
+    @always_ff(clk.posedge, reset=rst_n)
+    def uutlb():
 
-
-
-
-        # =============================================
-        # pipeline payload controls
-        # =============================================
-
-        @always_comb
-        def _status():
-            prf_sync.next = prf_vld and (prf_fault or not prf_match)
-
-
-
-
-        @always_ff(clk.posedge, reset=rst_n)
-        def va_controls():
-            if flush:
-                va.next = 0
-                prev_va.next = 0
-            elif tlb_start:
-                va.next = iva
-                prev_va.next = 0
+        # valid
+        if flush or tlb_start or ooo_flush:
+            uutlb_vld.next = False
+        else:
+            if st == TLB_STATE.WAIT and prf_sync:
+                uutlb_vld.next = True
+            elif st == TLB_STATE.SYNC and cross_page:
+                uutlb_vld.next = False
             else:
+                uutlb_vld.next = uutlb_vld
+
+        # TODO: the critical step is how to handle va
+        # va
+        if tlb_start:
+            uutlb_va.next = iva
+        else:
+            if st == TLB_STATE.TLB and tlb_drop:
+                uutlb_va.next = iva
+            elif st == TLB_STATE.WAIT and (tlb_drop or tlb_timeout):
                 if tlb_drop:
-                    if st == TLB_STATE.TLB or TLB_STATE.WAIT:
-                        va.next = iva
-                    elif st == TLB_STATE.SYNC:
-                        va.next = iva
-                        prev_va.next = va
-                    else:
-                        va.next = va
-                        prev_va.next = prev_va
-                else:
-                    if st == TLB_STATE.WAIT and not prf_sync:   # drop and re-lookup
-                        va.next = iva
-                        prev_va.next = 0
-                    elif st == TLB_STATE.SYNC and not stall:
-                        if cross_page:
-                            va.next = iva
-                            prev_va.next = 0
-                        else:
-                            va.next = iva
-                            prev_va.next = va
-                    else:
-                        va.next = va
-                        prev_va.next = prev_va
+                    uutlb_va.next = va
+
+                uutlb_va.next = uutlb_va
 
 
-        @always_ff(clk.posedge, reset=rst_n)
-        def pa_control():
+        # page size and pa
+        if st == TLB_STATE.TLB or TLB_STATE.WAIT:
+            if prf_sync:
+                uutlb_pa.next = prf_pa
+                uutlb_page_size.next = prf_page_size
+            else:
+                uutlb_pa.next = uutlb_pa
+                uutlb_page_size.next = uutlb_page_size
+
+
+    # =============================================
+    # data path controls
+    # =============================================
+
+    @always_ff(clk.posedge, reset=rst_n)
+    def va_controls():
+        if flush:
+            va.next = 0
+        elif tlb_start or (tlb_drop and st != TLB_STATE.IDLE):
+            va.next = iva
+        else:
+            if st == TLB_STATE.WAIT and
+
+
+
+
+
+    @always_ff(clk.posedge, reset=rst_n)
+    def pa_control():
             if flush:
                 pa.next = 0
             elif tlb_start:
@@ -274,6 +281,32 @@ def tlb_ctrl(
                     pa.next = prf_pa
                 elif st == TLB_STATE.SYNC:
                     if tlb_drop:
+
+
+
+
+
+
+
+    # =============================================
+    # backpressure control
+    # =============================================
+    @always_ff(clk.posedge, reset=rst_n)
+    def back_pressure():
+        if flush:
+            stall.next = False
+        elif tlb_start:
+            stall.next = True
+        else:
+            pass
+
+
+
+
+
+
+
+
 
 
 
