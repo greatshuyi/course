@@ -25,7 +25,7 @@
    {name: 'req vld',       wave: '0.....1..........0.1.0.1.....', },
 
    {name: 'req va',        wave: '2.....2.22.2..222..222..22222',   data: ['NA', 'VA1', 'VA2', 'VA3', 'VA4', 'VA5', 'VA6', 'VA7', 'VA1', 'VA2', 'VA3', 'VA4', 'VA5', 'VA6','VA7', 'VA8','VA9']},
-   {name: 'req pa',        wave: '2.....2.22.2..222..222.',   data: ['NA', 'PA1', 'PA2', 'PA3', 'PA4', 'PA5', 'PA6', 'PA7', 'PA1', 'PA2', 'PA3']},
+   {name: 'req pa',        wave: '2.....2.22.2..222..222..22222',   data: ['NA', 'PA1', 'PA2', 'PA3', 'PA4', 'PA5', 'PA6', 'PA7', 'PA1', 'PA2', 'PA3', 'PA4', 'PA5', 'PA6','PA7', 'PA8','PA9']},
 
   ],
 
