@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+"""
+    utlb_resp_fill_vld			    IN	1
+    utlb_resp_fill_va				IN	[48:12]
+    utlb_resp_fill_pa				IN	[40:12]
+    utlb_resp_fill_page_size		IN	[2:0]
+    utlb_resp_fill_shared			IN	1
+    utlb_resp_flush				    IN	1
+    utlb_resp_tid					IN	1
+    utlb_resp_pbha				    IN	2
+    utlb_resp_drop				    IN	1
+    utlb_resp_prf					IN	1
+"""
+
 
 from myhdl import (
     block, always_comb, always, instances, instance,
@@ -88,27 +101,50 @@ TLB_STATE = enum('IDLE', 'TLB', 'WAIT', 'SYNC')
 @block
 def tlb_ctrl(
     clk, rst_n, enable, flush,
-
-    # pipeline input
-    # command
-    ivld, istart, idrop,
-    iurgent, imode, ibase, ioffset,
-
     # ooo flush
     ooo_flush,
 
+    # pipeline input
+    # command
+    ivld, istart, idrop, iurgent,
+    ibase,
+    ioffset,
+    imode,
+    idst,
+    ikeep,
+    itype,
+
     # from pipelien & data path
-
     # from prefetch response
-    prf_vld, prf_fault, prf_match, prf_pa, prf_page_size,
+    prf_vld,
+    prf_fault,
+    prf_match,
+    prf_va,
+    prf_pa,
+    prf_page_size,
+    prf_sharable,
+    prf_drop,
+    prf_flush,
+    prf_tid,
 
-
+    # downstream NL channel
 
     # downstream pipeline interface
-    istall, ovalid,
+    req_vld,					# OUT	1
+    req_dst,					# OUT	1
+    req_keep,				    # OUT	1
+    req_typ,				    # OUT	1
+    req_prf,					# OUT	1           PLE always send out True
+    req_pa,					    # OUT	[48:0]
+    req_sharable,			    # OUT	[1:0]
+    reg_mair_e4,				# OUT	[4:0]
+    req_va1312,				    # OUT	[1:0]
+    req_hash_tag,			    # OUT	[7:0]
+    req_rid,					# OUT	[7:0]
+
 
     # backpressure to previous pipe
-    ostall,
+    istall, ostall,
 
     # monitor
     st, nxt
@@ -135,9 +171,10 @@ def tlb_ctrl(
 
     # act as uuTLB entry
     uutlb_vld = UBool(0)
+    uutlb_va = UInt(len(ibase)+len(ioffset), 0)
     uutlb_page_size = UInt(3)
-    uutlb_va = UInt(len(iva), 0)
-    uutlb_pa = UInt(len(pa), 0)
+    uutlb_sharable = UInt(2)
+    uutlb_pa = UInt(len(prf_pa), 0)
 
     st = UEnum(TLB_STATE)
     nxt = UEnum(TLB_STATE)
@@ -152,9 +189,23 @@ def tlb_ctrl(
 
     # pipeline internal stall
     stop = UBool(0)
+    stall = UBool(0)
 
-    va = UInt(len(iva), 0)  # current processing request's VA
-    pa = UInt(len(prf_pa), 0)
+    # =============================================
+    # staging control
+    # =============================================
+    @always_ff(clk.posedge, reset=rst_n)
+    def staging():
+        if flush:
+            stage_start.next = False
+            stage_drop.next = False
+            stage_base.next = 0
+            stage_offset.next = 0
+        elif not stop and enable:
+            stage_base.next = ibase
+            stage_offset.next = ioffset
+
+
 
     # =============================================
     # pipeline control
@@ -166,22 +217,9 @@ def tlb_ctrl(
         tlb_drop.next = stage_drop if stop else idrop
         base.next = stage_base if stop else ibase
         offset.next = stage_offset if stop else ioffset
-        # tlb_start.next = istart or ooo_flush
-        # tlb_drop.next = ivld and idrop
         tlb_timeout.next = True if st == TLB_STATE.WAIT and tlb_timer == 511 else False
         prf_sync.next = prf_vld and (not prf_fault and prf_match)
-        cross_page.next = (iva == uutlb_va) and uutlb_vld
-
-    @always_ff(clk.posedge, reset=rst_n)
-    def staging():
-        if flush:
-            stage_start.next = False
-            stage_drop.next = False
-            stage_base.next = 0
-            stage_offset.next = 0
-        elif not stop and enable:
-            stage_base.next = ibase
-            stage_offset.next = ioffset
+        cross_page.next = not (iva == uutlb_va) & uutlb_vld
 
     @always_ff(clk.posedge, reset=rst_n)
     def fsm_state():
@@ -201,7 +239,7 @@ def tlb_ctrl(
         elif st == TLB_STATE.TLB:
             if flush:
                 nxt.next = TLB_STATE.IDLE
-            elif tlb_start or tlb_drop:
+            elif tlb_start or tlb_drop or ooo_flush:
                 nxt.next = TLB_STATE.TLB
             else:
                 nxt.next = TLB_STATE.WAIT
@@ -209,7 +247,7 @@ def tlb_ctrl(
         elif st == TLB_STATE.WAIT:
             if flush:
                 nxt.next = TLB_STATE.IDLE
-            elif tlb_start or tlb_timeout or ooo_flush:
+            elif tlb_start or ooo_flush or tlb_drop or tlb_timeout:
                 nxt.next = TLB_STATE.TLB
             else:
                 if prf_sync:
@@ -220,7 +258,7 @@ def tlb_ctrl(
         elif st == TLB_STATE.SYNC:
             if flush:
                 nxt.next = TLB_STATE.IDLE
-            elif tlb_start:
+            elif tlb_start or ooo_flush:
                 nxt.next = TLB_STATE.TLB
             else:
                 nxt.next = TLB_STATE.TLB if cross_page else TLB_STATE.SYNC
@@ -248,13 +286,15 @@ def tlb_ctrl(
         # valid
         if flush or tlb_start or ooo_flush:
             uutlb_vld.next = False
-        else:
+        elif enable:
             if st == TLB_STATE.WAIT and prf_sync:
                 uutlb_vld.next = True
             elif st == TLB_STATE.SYNC and cross_page:
                 uutlb_vld.next = False
             else:
                 uutlb_vld.next = uutlb_vld
+        else:
+            uutlb_vld.next = uutlb_vld
 
         # TODO: the critical step is how to handle va, recheck
         if enable:
@@ -277,9 +317,12 @@ def tlb_ctrl(
         if enable and st == TLB_STATE.WAIT and prf_sync:
             uutlb_pa.next = prf_pa
             uutlb_page_size.next = prf_page_size
+            uutlb_sharable.next = prf_sharable
+
         else:  # hold
             uutlb_pa.next = uutlb_pa
             uutlb_page_size.next = uutlb_page_size
+            uutlb_sharable.next = prf_sharable
 
     # =============================================
     # data path & controls
@@ -287,25 +330,34 @@ def tlb_ctrl(
 
     @always_ff(clk.posedge, reset=rst_n)
     def va_controls():
+        if flush:
+            pass
 
 
 
     @always_ff(clk.posedge, reset=rst_n)
     def pa_control():
         if flush:
+            pass
+
+
+
+    @always_ff(clk.posedge, reset=rst_n)
+    def attr_control():
+        pass
 
 
     @always_ff(clk.posedge, reset=rst_n)
     def handshake():
         # ovalid
         if flush or tlb_start:
-            ovalid.next = False
+            req_vld.next = False
         elif st == TLB_STATE.WAIT:
-            ovalid.next = True if prf_sync else False
+            req_vld.next = True if prf_sync else False
         elif st == TLB_STATE.SYNC:
-            ovalid.next = False if cross_page or tlb_drop else True
+            req_vld.next = False if cross_page or tlb_drop else True
         else:
-            ovalid.next = ovalid
+            req_vld.next = req_vld
 
     # =============================================
     # back pressure control
@@ -313,57 +365,17 @@ def tlb_ctrl(
     @always_comb
     def back_pressure():
         if st == TLB_STATE.IDLE:
-            ostall.next = False
+            stall.next = False
         else:
-            ostall.next = not flush | stop | istall
+            stall.next = not flush | stop | istall
+
+        ostall.next = stall
 
     return instances()
 
 
 
 
-
- // TLB response
-utlb_resp_fill_vld			IN	1
-utlb_resp_fill_va			IN	[48:12]
-utlb_resp_fill_pa			IN	[40:12]
-utlb_resp_fill_page_size	IN	[2:0]
-utlb_resp_fill_shared		IN	1
-utlb_resp_flush				IN	1
-utlb_resp_tid				IN	1
-utlb_resp_pbha				IN	2
-utlb_resp_drop				IN	1
-utlb_resp_prf				IN	1
-
-
-// TLB request
-utlb_req_vld				OUT	1
-utlb_req_pgt				OUT	1
-utlb_req_va					OUT	[48:12]
-utlb_req_pa					OUT	[40:2]
-utlb_req_shared				OUT	1
-utlb_req_spd				OUT	[1:0]
-utlb_req_typ				OUT	[1:0]
-utlb_req_hash_pc			OUT	[10:0]
-utlb_req_page_size			OUT	[2:0]
-utlb_req_dir				OUT	1
-utlb_req_delta_hi			OUT	[15:12]
-utlb_req_st					OUT	1
-utlb_req_tid				OUT	1
-utlb_req_prf				OUT	1
-
-
-ple_req_vld_e4				OUT	1
-ple_req_dst					OUT	1
-ple_req_keep				OUT	1
-ple_req_typ					OUT	1
-ple_req_prf					OUT	1
-ple_req_pa					OUT	[48:0]
-ple_req_shareable			OUT	[1:0]
-ple_reg_mair_e4				OUT	[4:0]
-ple_req_va1312				OUT	[1:0]
-ple_req_hash_tag			OUT	[7:0]
-ple_req_rid					OUT	[7:0]
 ple_req_accept				IN	1
 		
 ple_req_send_finish			IN	1
