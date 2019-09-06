@@ -1,18 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-    utlb_resp_fill_vld			    IN	1
-    utlb_resp_fill_va				IN	[48:12]
-    utlb_resp_fill_pa				IN	[40:12]
-    utlb_resp_fill_page_size		IN	[2:0]
-    utlb_resp_fill_shared			IN	1
-    utlb_resp_flush				    IN	1
-    utlb_resp_tid					IN	1
-    utlb_resp_pbha				    IN	2
-    utlb_resp_drop				    IN	1
-    utlb_resp_prf					IN	1
-"""
-
-
 from myhdl import (
     block, always_comb, always, instances, instance,
     enum
@@ -100,112 +85,173 @@ TLB_STATE = enum('IDLE', 'TLB', 'WAIT', 'SYNC')
 
 @block
 def tlb_ctrl(
-    clk, rst_n, enable, flush,
+    clk,
+    rst_n,
+    enable,
+    flush,
     # ooo flush
-    ooo_flush,
+    i_ooo_flush,
+    i_ooo_flush_tid,
 
-    # pipeline input
-    # command
-    ivld, istart, idrop, iurgent,
+    # pipeline input command
+    istart,
+    idrop,
     ibase,
     ioffset,
-    imode,
+    ihint,
     idst,
-    ikeep,
     itype,
+    ikeep,
+    itid,
+    # tlb prefetch request
+    oprf_vld,
+    oprf_pgt,
+    oprf_va,
+    oprf_pa,
+    oprf_shared,
+    oprf_spd,
+    oprf_typ,
+    oprf_hash_pc,
+    oprf_page_size,
+    oprf_dir,
+    oprf_delta_hi,
+    oprf_st,
+    oprf_tid,
+    oprf_prf,
 
-    # from pipelien & data path
-    # from prefetch response
-    prf_vld,
-    prf_fault,
-    prf_match,
-    prf_va,
-    prf_pa,
-    prf_page_size,
-    prf_sharable,
-    prf_drop,
-    prf_flush,
-    prf_tid,
+    # tlb prefetch response
+    iprf_vld,
+    iprf_va,
+    iprf_pa,
+    iprf_page_size,
+    iprf_shareable,
+    iprf_flush,
+    iprf_tid,
+    iprf_pbha,
+    iprf_drop,
+    iprf_prf,
 
     # downstream NL channel
+    oreq_vld,                       # OUT   1
+    oreq_dst,                       # OUT	1
+    oreq_keep,                      # OUT	1
+    oreq_typ,                       # OUT	1
+    oreq_prf,                       # OUT	1
+    oreq_hash_pc,                   # OUT	1           PLE always send out True
+    oreq_page_size,                 # OUT	[48:0]
+    oreq_tid,                       # OUT	[1:0]
+    oreq_va1312,                    # OUT	[4:0]
+    oreq_shareable,                 # OUT	[1:0]
+    oreq_pa,                        # OUT	[7:0]
+    oreq_mair,                      # OUT   [4:0]
+    oreq_rid,                       # OUT	[7:0]
 
-    # downstream pipeline interface
-    req_vld,					# OUT	1
-    req_dst,					# OUT	1
-    req_keep,				    # OUT	1
-    req_typ,				    # OUT	1
-    req_prf,					# OUT	1           PLE always send out True
-    req_pa,					    # OUT	[48:0]
-    req_sharable,			    # OUT	[1:0]
-    reg_mair_e4,				# OUT	[4:0]
-    req_va1312,				    # OUT	[1:0]
-    req_hash_tag,			    # OUT	[7:0]
-    req_rid,					# OUT	[7:0]
-
-
-    # backpressure to previous pipe
-    istall, ostall,
+    # pipeline backpressure
+    istall, 
+    ostall,
 
     # monitor
-    st, nxt
+    st, 
+    nxt
 ):
     # =============================================
     # pipeline sigs and payload
     # =============================================
 
-    # staging buffer
-    stage_start = UBool(0)
-    stage_drop = UBool(0)
-    stage_base = UInt(len(ibase))
-    stage_offset = UInt(len(ioffset))
+    ooo_flush = UBool(0)
 
-    # mux-ed output
     tlb_start = UBool(0)
     tlb_drop = UBool(0)
-    base = UInt(len(ibase))
-    offset = UInt(len(ioffset))
+    tlb_timer = UInt(9, max=511)
+    tlb_timeout = UBool(0)
+    prf_load = UBool(0)
+    prf_va_match = UBool(0)
+    prf_sync = UBool(0)
+    cross_page = UBool(0)
 
-    # clear sig from FSM to stage cmd
-    clr_start = UBool(0)
-    clr_drop = UBool(0)
+    # address adder
+    iva = UInt(len(ibase)+6)
 
-    # act as uuTLB entry
+    # staging buffer
+    stage_va = UInt((len(ibase)+6))
+    stage_hint = UBool(0)
+    stage_dst = UBool(0)
+    stage_type = UBool(0)
+    stage_keep = UBool(0)
+    stage_tid = UBool(0)
+
+    # mux-ed output
+    va = UInt(len(iva))
+    hint = UBool(0)
+    dst = UBool(0)
+    type = UBool(0)
+    keep = UBool(0)
+    tid = UBool(0)
+
+    # uuTLB entry
     uutlb_vld = UBool(0)
-    uutlb_va = UInt(len(ibase)+len(ioffset), 0)
+    uutlb_va = UInt(len(iva))
+    uutlb_tid = UBool(0)
+
     uutlb_page_size = UInt(3)
     uutlb_sharable = UInt(2)
-    uutlb_pa = UInt(len(prf_pa), 0)
+    uutlb_pa = UInt(len(iprf_pa))
+
+    # tlb prefetch response pipe
+    prf_vld = UBool()
+    prf_va = UInt(len(iprf_va))
+    prf_pa = UInt(len(iprf_pa))
+    prf_page_size = UInt(len(iprf_page_size))
+    prf_shareable = UBool(0)
+    prf_flush = UBool(0)
+    prf_tid = UBool(0)
+    prf_pbha = UInt(len(iprf_pbha))
+    prf_drop = UBool(0)
+    prf_prf = UBool(0)
 
     st = UEnum(TLB_STATE)
     nxt = UEnum(TLB_STATE)
 
-    tlb_timer = UInt(9, max=511)
-    tlb_timeout = UBool(0)
-    prf_sync = UBool(0)
-
-    # data path & pipeline
-    iva = UInt(len(ibase)+len(ioffset))
-    cross_page = UBool(0)
-
     # pipeline internal stall
-    stop = UBool(0)
-    stall = UBool(0)
+    stop = UBool(0)             # FSM stop
+    stall = UBool(0)            # internal stall
+    ostall = UBool(0)           # output pipeline stall
 
     # =============================================
-    # staging control
+    # staging buffer
     # =============================================
     @always_ff(clk.posedge, reset=rst_n)
     def staging():
         if flush:
-            stage_start.next = False
-            stage_drop.next = False
-            stage_base.next = 0
-            stage_offset.next = 0
-        elif not stop and enable:
-            stage_base.next = ibase
-            stage_offset.next = ioffset
+            stage_va.next = 0
+            stage_hint.next = False
+            stage_dst.next = False
+            stage_type.next = False
+            stage_keep.next = False
+            stage_tid.next = False
+        elif not stall and enable:
+            stage_va.next = iva
+            stage_hint.next = ihint
+            stage_dst.next = idst
+            stage_type.next = itype
+            stage_keep.next = ikeep
+            stage_tid.next = itid
+        else:
+            stage_va.next = iva
+            stage_hint.next = ihint
+            stage_dst.next = idst
+            stage_type.next = itype
+            stage_keep.next = ikeep
+            stage_tid.next = itid
 
-
+    @always_comb
+    def mux():
+        va.next = stage_va if psel else iva
+        hint.next = stage_hint if psel else ihint
+        dst.next = stage_dst if psel else idst
+        type.next = stage_type if psel else itype
+        keep.next = stage_keep if psel else ikeep
+        tid.next = stage_tid if psel else itid
 
     # =============================================
     # pipeline control
@@ -213,18 +259,19 @@ def tlb_ctrl(
 
     @always_comb
     def glb_ctrl():
-        tlb_start.next = stage_start if stop else istart
-        tlb_drop.next = stage_drop if stop else idrop
-        base.next = stage_base if stop else ibase
-        offset.next = stage_offset if stop else ioffset
+        ooo_flush.next = i_ooo_flush if uutlb_tid == i_ooo_flush_tid else False
+        prf_va_match = True if prf_va == uutlb_va[:12] and prf_tid == uutlb_tid else False
+        prf_sync.next = prf_vld and prf_va_match and not prf_drop and not prf_flush
+
         tlb_timeout.next = True if st == TLB_STATE.WAIT and tlb_timer == 511 else False
-        prf_sync.next = prf_vld and (not prf_fault and prf_match)
         cross_page.next = not (iva == uutlb_va) & uutlb_vld
 
     @always_ff(clk.posedge, reset=rst_n)
     def fsm_state():
         if enable:
             st.next = nxt
+        else:
+            st.next = st
 
     @always_comb
     def fsm_transition():
@@ -317,12 +364,12 @@ def tlb_ctrl(
         if enable and st == TLB_STATE.WAIT and prf_sync:
             uutlb_pa.next = prf_pa
             uutlb_page_size.next = prf_page_size
-            uutlb_sharable.next = prf_sharable
+            uutlb_sharable.next = prf_shareable
 
         else:  # hold
             uutlb_pa.next = uutlb_pa
             uutlb_page_size.next = uutlb_page_size
-            uutlb_sharable.next = prf_sharable
+            uutlb_sharable.next = prf_shareable
 
     # =============================================
     # data path & controls
@@ -359,6 +406,26 @@ def tlb_ctrl(
         else:
             req_vld.next = req_vld
 
+
+    # =============================================
+    # TLB prefetch response
+    # =============================================
+    @always_ff(clk.posedge, reset=rst_n)
+    def _tlb_resp():
+        if enable:
+            prf_vld.next = iprf_vld
+            prf_va.next = iprf_va
+            prf_pa.next = iprf_pa
+            prf_page_size.next = iprf_page_size
+            prf_shareable.next = iprf_shareable
+            prf_flush.next = iprf_flush
+            prf_tid.next = iprf_tid
+            prf_pbha.next = iprf_pbha
+            prf_drop.next = iprf_drop
+            prf_prf.next = iprf_prf
+
+
+
     # =============================================
     # back pressure control
     # =============================================
@@ -374,24 +441,6 @@ def tlb_ctrl(
     return instances()
 
 
+def convert():
 
-
-ple_req_accept				IN	1
-		
-ple_req_send_finish			IN	1
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    pass
