@@ -8,8 +8,8 @@ from pipeline.hdl import *
 
 @block
 def va_adder(base, offset, va):
-
     ZEROS = 0b000000
+
     # va_tmp = UInt(len(va))
 
     @always_comb
@@ -20,9 +20,9 @@ def va_adder(base, offset, va):
 
 
 va_adder.verilog_code = \
-"""
-assign $va = {$base, {6{1'b0}}} + $offset;
-"""
+    """
+    assign $va = {$base, {6{1'b0}}} + $offset;
+    """
 
 
 @block
@@ -71,27 +71,27 @@ def pa_composer(uutlb_va, va,
 
 
 pa_composer.verilog_code = \
-"""
-wire [40:6] fpa_lo = $page_size == 0 ? {$prf_pa[28: 0], $uutlb_va[5 :0]} :
-                     $page_size == 1 ? {$prf_pa[28: 2], $uutlb_va[7 :0]} :
-                     $page_size == 2 ? {$prf_pa[28: 4], $uutlb_va[9 :0]} :
-                     $page_size == 3 ? {$prf_pa[28: 9], $uutlb_va[14:0]} :
-                     $page_size == 4 ? {$prf_pa[28:13], $uutlb_va[18:0]} :
-                     $page_size == 5 ? {$prf_pa[28:17], $uutlb_va[22:0]} :
-                     $page_size == 6 ? {$prf_pa[28:18], $uutlb_va[23:0]} :
-                     $page_size == 7 ? {$prf_pa[28:22], $uutlb_va[27:0]} : 35'b0;
-                     
-wire [40:6] spa_lo = $page_size == 0 ? {$uutlb_pa[28: 0], $va[5 :0]} :
-                     $page_size == 1 ? {$uutlb_pa[28: 2], $va[7 :0]} :
-                     $page_size == 2 ? {$uutlb_pa[28: 4], $va[9 :0]} :
-                     $page_size == 3 ? {$uutlb_pa[28: 9], $va[14:0]} :
-                     $page_size == 4 ? {$uutlb_pa[28:13], $va[18:0]} :
-                     $page_size == 5 ? {$uutlb_pa[28:17], $va[22:0]} :
-                     $page_size == 6 ? {$uutlb_pa[28:18], $va[23:0]} :
-                     $page_size == 7 ? {$uutlb_pa[28:22], $va[27:0]} : 35'b0;
- 
-assign $pa = $pa_sel ? {{8{1'b0}}, spa_lo} : {{8{1'b0}}, fpa_lo};
-"""
+    """
+    wire [40:6] fpa_lo = $page_size == 0 ? {$prf_pa[28: 0], $uutlb_va[5 :0]} :
+                         $page_size == 1 ? {$prf_pa[28: 2], $uutlb_va[7 :0]} :
+                         $page_size == 2 ? {$prf_pa[28: 4], $uutlb_va[9 :0]} :
+                         $page_size == 3 ? {$prf_pa[28: 9], $uutlb_va[14:0]} :
+                         $page_size == 4 ? {$prf_pa[28:13], $uutlb_va[18:0]} :
+                         $page_size == 5 ? {$prf_pa[28:17], $uutlb_va[22:0]} :
+                         $page_size == 6 ? {$prf_pa[28:18], $uutlb_va[23:0]} :
+                         $page_size == 7 ? {$prf_pa[28:22], $uutlb_va[27:0]} : 35'b0;
+    
+    wire [40:6] spa_lo = $page_size == 0 ? {$uutlb_pa[28: 0], $va[5 :0]} :
+                         $page_size == 1 ? {$uutlb_pa[28: 2], $va[7 :0]} :
+                         $page_size == 2 ? {$uutlb_pa[28: 4], $va[9 :0]} :
+                         $page_size == 3 ? {$uutlb_pa[28: 9], $va[14:0]} :
+                         $page_size == 4 ? {$uutlb_pa[28:13], $va[18:0]} :
+                         $page_size == 5 ? {$uutlb_pa[28:17], $va[22:0]} :
+                         $page_size == 6 ? {$uutlb_pa[28:18], $va[23:0]} :
+                         $page_size == 7 ? {$uutlb_pa[28:22], $va[27:0]} : 35'b0;
+    
+    assign $pa = $pa_sel ? {{8{1'b0}}, spa_lo} : {{8{1'b0}}, fpa_lo};
+    """
 
 
 @block
@@ -119,14 +119,14 @@ def cross_page_check(va, tid,
 
     @always_comb
     def same_page():
-        same_4k.next   = True if va[: 6] == uutlb_va[: 6] else False
-        same_16k.next  = True if va[: 8] == uutlb_va[: 8] else False
-        same_64k.next  = True if va[:10] == uutlb_va[:10] else False
-        same_2m.next   = True if va[:15] == uutlb_va[:15] else False
-        same_32m.next  = True if va[:19] == uutlb_va[:19] else False
+        same_4k.next = True if va[: 6] == uutlb_va[: 6] else False
+        same_16k.next = True if va[: 8] == uutlb_va[: 8] else False
+        same_64k.next = True if va[:10] == uutlb_va[:10] else False
+        same_2m.next = True if va[:15] == uutlb_va[:15] else False
+        same_32m.next = True if va[:19] == uutlb_va[:19] else False
         same_512m.next = True if va[:23] == uutlb_va[:23] else False
-        same_1g.next   = True if va[:29] == uutlb_va[:29] else False
-        same_16g.next  = True if va[:28] == uutlb_va[:28] else False
+        same_1g.next = True if va[:29] == uutlb_va[:29] else False
+        same_16g.next = True if va[:28] == uutlb_va[:28] else False
 
     @always_comb
     def same_page_size():
@@ -157,37 +157,33 @@ def cross_page_check(va, tid,
 
 
 cross_page_check.verilog_code = \
-"""
-// wire page_4k   = ($uutlb_page_size == 0) ? 1'b1 : 1'b0;
-// wire page_16k  = ($uutlb_page_size == 1) ? 1'b1 : 1'b0;
-// wire page_64k  = ($uutlb_page_size == 2) ? 1'b1 : 1'b0;
-// wire page_2m   = ($uutlb_page_size == 3) ? 1'b1 : 1'b0;
-// wire page_32m  = ($uutlb_page_size == 4) ? 1'b1 : 1'b0;
-// wire page_512m = ($uutlb_page_size == 5) ? 1'b1 : 1'b0;
-// wire page_1g   = ($uutlb_page_size == 6) ? 1'b1 : 1'b0;
-// wire page_16g  = ($uutlb_page_size == 7) ? 1'b1 : 1'b0;
-wire same_4k   = ($va[42: 6] == $uutlb_va[42: 6]) ? 1'b1 : 1'b0;
-wire same_16k  = ($va[42: 8] == $uutlb_va[42: 8]) ? 1'b1 : 1'b0;
-wire same_64k  = ($va[42:10] == $uutlb_va[42:10]) ? 1'b1 : 1'b0;
-wire same_2m   = ($va[42:15] == $uutlb_va[42:15]) ? 1'b1 : 1'b0;
-wire same_32m  = ($va[42:19] == $uutlb_va[42:19]) ? 1'b1 : 1'b0;
-wire same_512m = ($va[42:23] == $uutlb_va[42:23]) ? 1'b1 : 1'b0;
-wire same_1g   = ($va[42:29] == $uutlb_va[42:29]) ? 1'b1 : 1'b0;
-wire same_16g  = ($va[42:28] == $uutlb_va[42:28]) ? 1'b1 : 1'b0;
-
-wire same_page = ($uutlb_page_size == 0) ? same_4k   :
-                 ($uutlb_page_size == 1) ? same_16k  :
-                 ($uutlb_page_size == 2) ? same_64k  :
-                 ($uutlb_page_size == 3) ? same_2m   :
-                 ($uutlb_page_size == 4) ? same_32m  :
-                 ($uutlb_page_size == 5) ? same_512m :
-                 ($uutlb_page_size == 6) ? same_1g   :
-                 ($uutlb_page_size == 7) ? same_16g  : 1'b0 ;
-
-assign $cross_page = (tid ^ $uutlb_tid) | ~same_page;
-
-"""
-
+    """
+    // wire page_4k   = ($uutlb_page_size == 0) ? 1'b1 : 1'b0;
+    // wire page_16k  = ($uutlb_page_size == 1) ? 1'b1 : 1'b0;
+    // wire page_64k  = ($uutlb_page_size == 2) ? 1'b1 : 1'b0;
+    // wire page_2m   = ($uutlb_page_size == 3) ? 1'b1 : 1'b0;
+    // wire page_32m  = ($uutlb_page_size == 4) ? 1'b1 : 1'b0;
+    // wire page_512m = ($uutlb_page_size == 5) ? 1'b1 : 1'b0;
+    // wire page_1g   = ($uutlb_page_size == 6) ? 1'b1 : 1'b0;
+    // wire page_16g  = ($uutlb_page_size == 7) ? 1'b1 : 1'b0;
+    wire same_4k   = ($va[42: 6] == $uutlb_va[42: 6]) ? 1'b1 : 1'b0;
+    wire same_16k  = ($va[42: 8] == $uutlb_va[42: 8]) ? 1'b1 : 1'b0;
+    wire same_64k  = ($va[42:10] == $uutlb_va[42:10]) ? 1'b1 : 1'b0;
+    wire same_2m   = ($va[42:15] == $uutlb_va[42:15]) ? 1'b1 : 1'b0;
+    wire same_32m  = ($va[42:19] == $uutlb_va[42:19]) ? 1'b1 : 1'b0;
+    wire same_512m = ($va[42:23] == $uutlb_va[42:23]) ? 1'b1 : 1'b0;
+    wire same_1g   = ($va[42:29] == $uutlb_va[42:29]) ? 1'b1 : 1'b0;
+    wire same_16g  = ($va[42:28] == $uutlb_va[42:28]) ? 1'b1 : 1'b0;
+    wire same_page = ($uutlb_page_size == 0) ? same_4k   :
+                     ($uutlb_page_size == 1) ? same_16k  :
+                     ($uutlb_page_size == 2) ? same_64k  :
+                     ($uutlb_page_size == 3) ? same_2m   :
+                     ($uutlb_page_size == 4) ? same_32m  :
+                     ($uutlb_page_size == 5) ? same_512m :
+                     ($uutlb_page_size == 6) ? same_1g   :
+                     ($uutlb_page_size == 7) ? same_16g  : 1'b0 ;
+    assign $cross_page = (tid ^ $uutlb_tid) | ~same_page;
+    """
 
 TLB_STATE = enum('IDLE', 'TLB', 'WAIT', 'SYNC')
 
@@ -242,19 +238,19 @@ def tlb_ctrl(
     iprf_prf,
 
     # downstream NL channel
-    oreq_vld,                       # OUT   1
-    oreq_dst,                       # OUT	1
-    oreq_keep,                      # OUT	1
-    oreq_typ,                       # OUT	1
-    oreq_prf,                       # OUT	1
-    oreq_hash_pc,                   # OUT	1           PLE always send out True
-    oreq_page_size,                 # OUT	[48:0]
-    oreq_tid,                       # OUT	[1:0]
-    oreq_va1312,                    # OUT	[4:0]
-    oreq_shareable,                 # OUT	[1:0]
-    oreq_pa,                        # OUT	[40:6]
-    oreq_mair,                      # OUT   [4:0]
-    oreq_rid,                       # OUT	[7:0]
+    oreq_vld,  # OUT   1
+    oreq_dst,  # OUT	1
+    oreq_keep,  # OUT	1
+    oreq_typ,  # OUT	1
+    oreq_prf,  # OUT	1
+    oreq_hash_pc,  # OUT	1           PLE always send out True
+    oreq_page_size,  # OUT	[48:0]
+    oreq_tid,  # OUT	[1:0]
+    oreq_va1312,  # OUT	[4:0]
+    oreq_shareable,  # OUT	[1:0]
+    oreq_pa,  # OUT	[40:6]
+    oreq_mair,  # OUT   [4:0]
+    oreq_rid,  # OUT	[7:0]
 
     # pipeline backpressure
     istall,
@@ -280,7 +276,7 @@ def tlb_ctrl(
     cross_page = UBool(0)
 
     # address adder
-    iva = UInt((len(ibase)+6))
+    iva = UInt((len(ibase) + 6))
 
     # staging buffer
     stage_va = UInt(len(iva))
@@ -289,7 +285,7 @@ def tlb_ctrl(
     stage_type = UBool(0)
     stage_keep = UBool(0)
     stage_tid = UBool(0)
-    
+
     stage_load = UBool(0)
 
     # mux-ed output
@@ -337,8 +333,8 @@ def tlb_ctrl(
     # nxt = UEnum(TLB_STATE)
 
     # pipeline internal stall
-    stop = UBool(0)             # FSM stop
-    stall = UBool(0)            # internal stall
+    stop = UBool(0)  # FSM stop
+    stall = UBool(0)  # internal stall
 
     # =============================================
     # va generation
@@ -351,7 +347,9 @@ def tlb_ctrl(
     # =============================================
     @always_comb
     def staging_en():
-        stage_load.next = tlb_start or st == TLB_STATE.IDLE or ((st == TLB_STATE.TLB or st == TLB_STATE.WAIT) and tlb_drop) or (st == TLB_STATE.SYNC and enable and not stall)
+        stage_load.next = tlb_start or st == TLB_STATE.IDLE or (
+                (st == TLB_STATE.TLB or st == TLB_STATE.WAIT) and tlb_drop) or (
+                                  st == TLB_STATE.SYNC and enable and not stall)
 
     @always_ff(clk.posedge, reset=rst_n)
     def staging():
@@ -408,20 +406,13 @@ def tlb_ctrl(
     @always_comb
     def fsm_transition():
         if st == TLB_STATE.IDLE:
-            if flush:
-                nxt.next = TLB_STATE.IDLE
-            elif tlb_start:
-                nxt.next = TLB_STATE.TLB
-            else:
-                nxt.next = TLB_STATE.IDLE
+            nxt.next = TLB_STATE.TLB if tlb_start else False
 
         elif st == TLB_STATE.TLB:
             if flush:
                 nxt.next = TLB_STATE.IDLE
-            elif tlb_start or tlb_drop or ooo_flush:
-                nxt.next = TLB_STATE.TLB
             else:
-                nxt.next = TLB_STATE.WAIT
+                nxt.next = TLB_STATE.TLB if tlb_start or tlb_drop or ooo_flush else TLB_STATE.WAIT
 
         elif st == TLB_STATE.WAIT:
             if flush:
@@ -437,10 +428,8 @@ def tlb_ctrl(
         elif st == TLB_STATE.SYNC:
             if flush:
                 nxt.next = TLB_STATE.IDLE
-            elif tlb_start or ooo_flush:
-                nxt.next = TLB_STATE.TLB
             else:
-                nxt.next = TLB_STATE.TLB if cross_page else TLB_STATE.SYNC
+                nxt.next = TLB_STATE.TLB if tlb_start or ooo_flush or cross_page else TLB_STATE.SYNC
 
         else:
             nxt.next = TLB_STATE.IDLE
@@ -483,7 +472,7 @@ def tlb_ctrl(
 
     @always_comb
     def _tlb_cam():
-        prf_sync.next = prf_vld and (prf_va_match and not prf_drop and not prf_flush)\
+        prf_sync.next = prf_vld and (prf_va_match and not prf_drop and not prf_flush) \
                         and (not tlb_timeout and not tlb_start and not tlb_drop and not ooo_flush)
 
     # =============================================
@@ -495,7 +484,7 @@ def tlb_ctrl(
                         (st == TLB_STATE.TLB and tlb_drop) or \
                         (st == TLB_STATE.WAIT and (tlb_drop or ooo_flush)) or \
                         (st == TLB_STATE.SYNC and (cross_page or ooo_flush))
-        
+
     @always_ff(clk.posedge, reset=rst_n)
     def _oprf_attr():
         if flush:
@@ -514,17 +503,18 @@ def tlb_ctrl(
 
     @always_ff(clk.posedge, reset=rst_n)
     def _oprf_pld_sel():
-        """VA, TID, HASH_PC always load from stage output or hold"""
-        # if tlb_start:
-        #     oprf_va.next = va[:12]
-        # elif st == TLB_STATE.WAIT and tlb_drop:
-        #     oprf_va.next = va[:12]
-        # elif st == TLB_STATE.WAIT and not tlb_drop and (tlb_timeout or ooo_flush):
-        #     oprf_va.next = oprf_va
-        # elif st == TLB_STATE.SYNC and (cross_page or ooo_flush):
-        #     oprf_va.next = va[:12]
-        # else:
-        #     oprf_va.next = oprf_va
+        """VA, TID, HASH_PC always load from stage output or hold, which looks like
+            # if tlb_start:
+            #     oprf_va.next = va[:12]
+            # elif st == TLB_STATE.WAIT and tlb_drop:
+            #     oprf_va.next = va[:12]
+            # elif st == TLB_STATE.WAIT and not tlb_drop and (tlb_timeout or ooo_flush):
+            #     oprf_va.next = oprf_va
+            # elif st == TLB_STATE.SYNC and (cross_page or ooo_flush):
+            #     oprf_va.next = va[:12]
+            # else:
+            #     oprf_va.next = oprf_va
+        """
         if prf_load:
             oprf_va.next = va[:6]
             oprf_tid.next = tid
@@ -558,7 +548,7 @@ def tlb_ctrl(
         if flush or tlb_start or ooo_flush or (st == TLB_STATE.SYNC and cross_page):
             uutlb_vld.next = False
         elif enable:
-                uutlb_vld.next = True if st == TLB_STATE.WAIT and prf_sync else False
+            uutlb_vld.next = True if st == TLB_STATE.WAIT and prf_sync else False
         else:
             uutlb_vld.next = uutlb_vld
 
@@ -614,9 +604,9 @@ def tlb_ctrl(
                                   uutlb_tid=uutlb_tid,
                                   cross_page=cross_page,
                                   )
-    
+
     composer = pa_composer(uutlb_va=uutlb_va, va=va,
-                           uutlb_pa=uutlb_pa, prf_pa=prf_pa, 
+                           uutlb_pa=uutlb_pa, prf_pa=prf_pa,
                            page_size=page_size, pa_sel=pa_sel,
                            pa=pa)
 
@@ -679,20 +669,19 @@ def tlb_ctrl(
 
 
 def convert():
-
-    BASE_VA_WIDTH = 43 # [48:6]
+    BASE_VA_WIDTH = 43  # [48:6]
     OFFSET_WIDTH = 11
 
-    OPRF_VA_WIDTH = 37 # [48:12]
-    OPRF_PA_WIDTH = 39 # [40: 2]
-    OPRF_HASH_PC_WIDTH = 11 # [10: 0]
-    OPRF_DELTA_HI_WIDTH = 4 # [15:12]
+    OPRF_VA_WIDTH = 37  # [48:12]
+    OPRF_PA_WIDTH = 39  # [40: 2]
+    OPRF_HASH_PC_WIDTH = 11  # [10: 0]
+    OPRF_DELTA_HI_WIDTH = 4  # [15:12]
 
-    IPRF_VA_WIDTH = 37 # [48:12]
-    IPRF_PA_WIDTH = 29 # [40:12]
+    IPRF_VA_WIDTH = 37  # [48:12]
+    IPRF_PA_WIDTH = 29  # [40:12]
 
-    OREQ_HASH_PC_WIDTH = 7 # [6:0]
-    OREQ_PA_WIDTH = 43 # [48:6]
+    OREQ_HASH_PC_WIDTH = 7  # [6:0]
+    OREQ_PA_WIDTH = 43  # [48:6]
 
     clk = UBool(0)
     rst_n = AsyncReset(0)
@@ -748,7 +737,7 @@ def convert():
     oreq_keep = UBool(0)  # OUT	1
     oreq_typ = UBool(0)  # OUT	1
     oreq_prf = UBool(0)  # OUT	1
-    oreq_hash_pc = UInt(OREQ_HASH_PC_WIDTH)   # OUT	1           PLE always send out True
+    oreq_hash_pc = UInt(OREQ_HASH_PC_WIDTH)  # OUT	1           PLE always send out True
     oreq_page_size = UInt(2)  # OUT	[48:0]
     oreq_tid = UBool(0)  # OUT	[1:0]
     oreq_va1312 = UInt(2)  # OUT	[4:0]
@@ -814,18 +803,18 @@ def convert():
         iprf_prf=iprf_prf,
 
         # downstream NL channel
-        oreq_vld=oreq_vld,                       # OUT   1
-        oreq_dst=oreq_dst,                       # OUT	1
-        oreq_keep=oreq_keep,                      # OUT	1
-        oreq_typ=oreq_typ,                       # OUT	1
-        oreq_prf=oreq_prf,                       # OUT	1
-        oreq_hash_pc=oreq_hash_pc,                   # OUT	1           PLE always send out True
-        oreq_page_size=oreq_page_size,                 # OUT	[48:0]
-        oreq_tid=oreq_tid,                       # OUT	[1:0]
-        oreq_va1312=oreq_va1312,                    # OUT	[4:0]
-        oreq_shareable=oreq_shareable,                 # OUT	[1:0]
-        oreq_pa=oreq_pa,                        # OUT	[40:6]
-        oreq_mair=oreq_mair,                      # OUT   [4:0]
+        oreq_vld=oreq_vld,  # OUT   1
+        oreq_dst=oreq_dst,  # OUT	1
+        oreq_keep=oreq_keep,  # OUT	1
+        oreq_typ=oreq_typ,  # OUT	1
+        oreq_prf=oreq_prf,  # OUT	1
+        oreq_hash_pc=oreq_hash_pc,  # OUT	1           PLE always send out True
+        oreq_page_size=oreq_page_size,  # OUT	[48:0]
+        oreq_tid=oreq_tid,  # OUT	[1:0]
+        oreq_va1312=oreq_va1312,  # OUT	[4:0]
+        oreq_shareable=oreq_shareable,  # OUT	[1:0]
+        oreq_pa=oreq_pa,  # OUT	[40:6]
+        oreq_mair=oreq_mair,  # OUT   [4:0]
         oreq_rid=oreq_rid,
 
         # pipeline backpressure
@@ -839,6 +828,9 @@ def convert():
     )
 
     tlb.convert(hdl='Verilog')
+
+
+convert()
 
 
 convert()
