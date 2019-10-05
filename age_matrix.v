@@ -83,12 +83,6 @@ always @(posedge clk or negedge rst_n) begin: AGE_MATRIX__DE_ALLOC
     integer r;
     integer c;
     if (!rst_n) begin
-	/*
-        entries[0] <= 0;
-        entries[1] <= 0;
-        entries[2] <= 0;
-        entries[3] <= 0;
-	*/
 		for(r=0; r<ENTRIES; r=r+1) begin
 			entries[r] <= 0;
 		end
@@ -97,25 +91,19 @@ always @(posedge clk or negedge rst_n) begin: AGE_MATRIX__DE_ALLOC
         for (r=0; r<4; r=r+1) begin
             for (c=0; c<4; c=c+1) begin
                 if ((alloc[r] == 1)) begin
-                    if ((c == r)) begin
+                    if ((c == r))
                         entries[r][c] <= 1;
-                    end
                     else begin
-                        if ((dealloc[c] == 1)) begin
+                        if ((dealloc[c] == 1))
                             entries[r][c] <= 0;
-                        end
-                        else begin
+                        else
                             entries[r][c] <= entries[c][c];
-                        end
                     end
-                end
-                else begin
-                    if ((dealloc[c] == 1)) begin
+                end else begin
+                    if ((dealloc[c] == 1))
                         entries[r][c] <= 0;
-                    end
-                    else begin
+                    else
                         entries[r][c] <= entries[r][c];
-                    end
                 end
             end
         end
@@ -156,6 +144,488 @@ one_hot_check #(.WIDTH(ENTRIES)) yog_check(
     .in(youngest),
     .out(yog_vld) );
 
+
+endmodule
+
+module priority_mask #(
+
+	parameter WIDTH = 16
+	
+) (
+	input  wire [WIDTH-1:0] in,
+	output wire [WIDTH-1:0] out,
+	output wire             vld
+);
+    """Priority mask, MSB first, Mask out the first zero"""
+
+
+reg [WIDTH-1:0] tmp;
+reg             valid;
+
+always @(*) begin
+	tmp = 0;
+	for(i=WIDTH-1; i>=0; i=i-1) begin
+		if (in[i] == 1'b1) begin
+			tmp[i] = 1'b1;
+			valid =  1'b1;
+		end
+	end	
+end
+
+assign out   = tmp;
+assign valid = vld;
+
+endmodule
+
+
+module queue_entry #(
+
+	parameter WIDTH = 16
+	
+) (
+    input  wire             clk,
+    input  wire             rst_n,
+		   
+    input  wire             wen,
+    input  wire [WIDTH-1:0] in,
+    input  wire             ren,
+    input  wire             invld,            # invalidate an entry
+	
+    output wire [WIDTH-1:0] out,
+    output wire             valid,
+    output wire             issue
+
+);
+
+// =============================================
+// Entry field
+// =============================================
+
+reg                vld;
+reg [WIDTH-1:0]    data;
+reg                isu;
+
+always @(posedge clk or negedge rst_n) begin
+	if (!rst_n)
+		vld <= 1'b0;
+	else begin
+		if(wen and !invld)
+			vld <= 1'b1;
+		else if(!wen and invld and vld)
+			vld <= 1'b0;
+		else
+			vld <= vld;
+	end
+end
+
+always @(posedge clk or negedge rst_n) begin
+	if (!rst_n)
+		data <= 0;
+	else begin
+        if(wen)
+            data <= in;
+        else
+            data <= data;
+	end
+end
+
+always @(posedge clk or negedge rst_n) begin
+	if (!rst_n)
+		isu <= 1'b0;
+	else if(invld)
+        isu <= 1'b0;
+    else begin
+        if(ren)
+			isu <= 1'b1;
+        else
+            isu <= isu;
+	end
+end
+
+// =============================================
+// output
+// =============================================
+
+assign valid      = vld;
+assign out        = data;
+assign issue      = isu;
+
+
+endmodule
+
+
+
+module queue #( 
+	parameter             NB = `VERSTG,  // number of fifo banks
+    parameter             ND = `HORSTG,  // number of entries per bank
+    parameter             DW = `DATAWD,  // data width
+)  ( 
+	input  wire           rst_        ,  // global reset 
+    input  wire           clk_put     ,  // clocked sender  : clock for sender domain
+    input  wire           req_put     ,  // clocked sender  : request put
+    output reg            spaceav     ,  // clocked sender  : space available indicator
+    input  wire [DW-1:0]  din         ,  // clocked sender  : data in
+    input  wire           clk_get     ,  // clocked receiver: clock for receiver domain
+    input  wire           req_get     ,  // clocked receiver: request get
+    output reg            datav       ,  // clocked receiver: data valid indicator
+    output wire [DW-1:0]  dout           // clocked receiver: data out
+); 
+	 
+
+// =============================================
+// Queue Entries
+// =============================================
+
+localparam ENTRIES = NB*ND;
+
+wire [DW-1:0] eout [ENTRIES-1:0];
+
+wire [ENTRIES-1:0] ewen;
+wire [ENTRIES-1:0] evld;
+wire [ENTRIES-1:0] evld;
+wire [ENTRIES-1:0] evld;
+
+
+genvar i;
+
+generate
+for (i=0; i<ENTRIES-1; i=i+1) begin
+	queue_entry #(.WIDTH(DW)) entry (
+		.clk(clk),
+		.rst_n(rst_n),
+		.wen(ewen[i]),
+		.in(din),
+		.ren(eren[i]),
+		.invld(einvld[i]),            # invalidate an entry
+		.out(eout[i]),
+		.valid(evld[i]),
+		.issue(eisu[i])
+);
+		
+end
+endgenerate
+
+	 
+
+// =============================================
+// write allocation
+// =============================================
+
+priority_mask #( 
+	.WIDTH(NV)
+) allocator (
+	.in(evld), 
+	.dout(ewen), 
+	.valid(full)
+);
+
+
+endmodule
+
+
+
+module weighted_round_robin #(
+	parameter int NREQ       = 32,
+	parameter int PRIORITY_W = 4,
+	parameter int NREQW      = $clog2(N)
+) (
+
+	input                                clk,
+	input                                rst_n,
+
+	//========================================================================== //
+	// Round Robin                                                               //
+	//========================================================================== //
+
+	input        [NREQ-1:0]              req,
+	input                                ack,
+	
+	output wire  [NREQ-1:0]              gnt,
+	output wire  [NREQW-1:0]             idx
+
+	//========================================================================== //
+	//                                                                           //
+	// Round Robin                                                               //
+	//                                                                           //
+	//========================================================================== //
+
+	input       [PRIORITY_W-1:0]         prio
+	input       [NREQW-1:0]              prio_id
+	input                                prio_upt
+);
+
+
+
+function bit_reverse;
+	input [PRIORITY_W-1:0] in;
+	begin
+		for (int i = 0; i < PRIORITY_W; i=i+1)
+			bit_reverse[i] = in[W - i - 1];
+	end
+endfunction
+
+// ======================================================================== //
+// Signals                                                                    //
+// ======================================================================== //
+
+// priority weights
+wire [PRIORITY_W-1:0] priority_vec_ns [NREG-1:0];
+reg  [PRIORITY_W-1:0] priority_vec [NREG-1:0];
+
+
+
+
+reg [PRIORITY_W-1:0]             priority_r;
+reg                              
+reg                              cycle_label_counter_en;
+reg [PRIORITY_W-1:0]             cycle_label_counter_w;
+reg [PRIORITY_W-1:0]             cycle_label_counter_r;
+reg [PRIORITY_W:0]               ffs0_post_ss;
+reg [PRIORITY_W:0]               sterile_string;
+reg [PRIORITY_W:0]               sterile_string_next_0;
+reg [PRIORITY_W:0]               sterile_string_first_1;
+reg                              next_0_is_sterile;
+reg [PRIORITY_W:0]               sterile_mask;
+reg [PRIORITY_W:0]               sterile_inc_A;
+reg [PRIORITY_W:0]               sterile_inc_B;
+reg [PRIORITY_W:0]               sterile_inc_C;
+reg [PRIORITY_W:0]               sterile_inc;
+//
+reg                              cycle_label_counter_upt;
+//
+reg [PRIORITY_W-1:0]             cycle_idx_1d;
+
+logic                            priority_vec_en;
+//
+reg [NREQ-1:0]                   round_req;
+//
+reg [NREQ-1:0]                   sel_vec;
+reg [NREQ-1:0]                   sel_vec_w;
+reg [NREQ-1:0]                   sel_vec_mask;
+reg [NREQ-1:0]                   sel_vec_mask_w;
+reg [NREQ-1:0]                   sel_vec_mask_r;
+reg                              sel_vec_mask_en;
+reg                              sel_vec_empty;
+reg [NREQ-1:0]                   sel_vec_1d;
+
+// ======================================================================== //
+// Combinatorial Logic                                                      //
+// ======================================================================== //
+
+
+// ------------------------------------------------------------------------ //
+
+assign priority_vec_en = prio_upt;
+
+
+genvar i;
+
+generate
+for(i=0; i < NREQ; i=i+1) begin
+	assign priority_vec_ns[i] = (prio_id == i) ? bit_reverse(prio)
+	                                           : priority_vec[i];
+end
+endgenerate
+
+
+
+// ------------------------------------------------------------------------ //
+//
+always @(*) begin
+    sterile_string [PRIORITY_W] = 'b0;
+    for (int p = 0; p < PRIORITY_W; p=p+1) begin
+      sterile_string [p] = '0;
+      for (int i = 0; i < N; i++)
+        sterile_string [p] |= req [i] & priority_vec.p [i][p];
+    end
+
+  end
+
+// ------------------------------------------------------------------------ //
+//
+always @(*) begin: sterile_string_PROC
+	sterile_mask = sterile_string_first_1 - 'b1;
+    ffs0_post_ss = {1'b0, cycle_label_counter_r} | sterile_mask;
+end
+
+// ------------------------------------------------------------------------ //
+//
+always @(*)
+  begin
+
+    //
+    next_0_is_sterile  = |((~sterile_string) & sterile_string_next_0);
+
+    //
+    sterile_inc_A  = {1'b0, sterile_mask [PRIORITY_W-1:0]
+                      ^ (cycle_label_counter_r & sterile_mask [PRIORITY_W-1:0])};
+
+    //
+    sterile_inc_B  = 'b1;
+
+    //
+    sterile_inc_C  = next_0_is_sterile ? sterile_string_first_1 : 'b0;
+
+    //
+    sterile_inc    = (sterile_inc_A + sterile_inc_B + sterile_inc_C);
+
+  end // block: sterile_PROC
+
+// ------------------------------------------------------------------------ //
+//
+always @(*)
+  begin
+
+    // Should never become zero.
+    //
+    casez ({rst})
+      1'b1:    cycle_label_counter_w  = 'b1;
+      default: cycle_label_counter_w  = cycle_label_counter_r +
+                                        sterile_inc [PRIORITY_W-1:0];
+    endcase
+
+    //
+    cycle_label_counter_upt  = (ack & sel_vec_empty);
+
+    //
+    cycle_label_counter_en   = (rst | cycle_label_counter_upt);
+
+  end // always @(*)
+
+
+// ------------------------------------------------------------------------ //
+//
+always @(*)
+  begin : sec_vec_PROC
+
+    //
+    for (int i = 0; i < $bits(n_t); i++)
+      round_req [i]  = req [i] & |(cycle_idx_1d & priority_vec.p[i]);
+
+    //
+    sel_vec          = (~sel_vec_mask_r) & (round_req);
+
+  end // block: sec_vec_PROC
+
+// ------------------------------------------------------------------------ //
+//
+always @(*) begin
+
+    casez ({rst, cycle_label_counter_upt})
+      2'b1_?:  sel_vec_mask_w  = '0;
+      2'b0_1:  sel_vec_mask_w  = '0;
+      default: sel_vec_mask_w  = sel_vec_mask;
+    endcase // casez ({rst})
+
+    //
+    sel_vec_mask_en         = (rst | ack);
+
+  end // always @(*)
+
+// ------------------------------------------------------------------------ //
+//
+always @(*)
+  begin
+
+    //
+    sel_vec_mask   = (sel_vec_mask_r | sel_vec_1d);
+
+    //
+    sel_vec_empty  = ~|((~sel_vec_mask) & round_req);
+
+  end
+
+assign gnt  = sel_vec_1d;
+
+
+// ======================================================================== //
+//                                                                          //
+// Flops                                                                    //
+//                                                                          //
+// ======================================================================== //
+
+// ------------------------------------------------------------------------ //
+//
+always @(posedge clk or negedge rst_n) begin
+	if (!rst_n) begin
+		for(i=0; i < NREG-1; i=i+1)
+			priority_vec[i] <= 0;
+	end else begin
+		for(i=0; i < NREG-1; i=i+1)
+			priority_vec[i] <= priority_vec_ns[i];	
+	end
+end
+
+
+always @(posedge clk or negedge rst_n) begin
+	if (!rst_n)
+		cycle_label_counter_r <= {PRIORITY_W{1'b1}};
+	else begin
+		if (cycle_label_counter_en)
+			cycle_label_counter_r <= cycle_label_counter_w;
+		else
+			cycle_label_counter_r <= cycle_label_counter_r;
+	end
+end
+
+
+always @(posedge clk or negedge rst_n) begin
+	if (!rst_n)
+		sel_vec_mask_r <= 0;
+	else begin
+		if (sel_vec_mask_en)
+			sel_vec_mask_r <= sel_vec_mask_w;
+		else
+			sel_vec_mask_r <= sel_vec_mask_r;
+	end
+end
+
+
+// ======================================================================== //
+//                                                                          //
+// Instances                                                                //
+//                                                                          //
+// ======================================================================== //
+
+// ------------------------------------------------------------------------ //
+//
+ffs #(.W(PRIORITY_W)) u_ffs_cycle_label_counter (
+  //
+    .x                 (cycle_label_counter_r   )
+  //
+  , .y                 (cycle_idx_1d            )
+  , .n                 (                        )
+);
+
+// ------------------------------------------------------------------------ //
+//
+ffs #(.W(N)) u_ffs_sel_vec (
+  //
+    .x                 (sel_vec                 )
+  //
+  , .y                 (sel_vec_1d              )
+  , .n                 (                        )
+);
+
+// ------------------------------------------------------------------------ //
+//
+ffs #(.W($bits(sterile_t)), .OPT_FIND_FIRST_ZERO(1)) u_ffs_sterile (
+  //
+    .x                 (ffs0_post_ss            )
+  //
+  , .y                 (sterile_string_next_0   )
+  , .n                 (                        )
+);
+
+// ------------------------------------------------------------------------ //
+//
+ffs #(.W($bits(sterile_t))) u_ffs_ss_first_1 (
+  //
+    .x                 (sterile_string          )
+  //
+  , .y                 (sterile_string_first_1  )
+  , .n                 (                        )
+);
 
 endmodule
 
