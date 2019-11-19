@@ -1,4 +1,5 @@
-
+//
+//
 // This is the least-recently-used (LRU) calculation module. It
 // essentially has two types of input and output.
 //
@@ -23,48 +24,86 @@
 //  * lru_pre:  LRU before the access (one hot of ways)
 //  * lru_post: LRU after the access (one hot of ways)
 //
+// To used this module, caller must be explicitly instantiate registers to hold
+// LRU history vectors. An Instantiation example as follow:
+//
+//     ...
+//     parameter NWAY = 4;
+//     parameter LRU_WIDTH = (NWAY * ( NWAY-1)) >> 1;
+//
+//     ...
+//
+//     // LRU history vector registering
+//     reg [LRU_WIDTH-1:0] current_history;
+//     reg [LRU_WIDTH-1:0] updated_history;
+//
+//     // Access vector & Pre/Post LRU selection vector
+//     wire [NWAY-1:0] access;
+//     wire [NWAY-1:0] lru_pre;
+//     wire [NWAY-1:0] lru_post;
+//     ...
+//
+//     lru (
+//         .NWAY(4)
+//     ) u_lru (
+//         .current  (current_history),
+//         .update   (updated_history),
+//         .access   (access),
+//         .lru_pre  (lru_pre),
+//         .lru_post (lru_post));
+//
+//
 // Algorithm description:
 //
 //  To solve least-recently-used problem, the key methods lies in to
-//  find relative aging between each pair of element upon every access.
-//  An intuitive way is to use comparators to accomplish. However, a
+//  find relative age information between each pair of element upon every access.
+//  An intuitive way is to use comparators to accomplish it. However, a
 //  neat approach exists not only to store the coded history efficiently,
-//  but also easing the calculation.
+//  but also easing the aging info's calculation.
 // 
-//  To elaborate this method, we start from by studying how to express the 
-//  whole information on whether each entry is older than others.
-//  Let the binary operator > represents older than information, i.e. x > y 
-//  means x is older than y. In case of four-way entries example,
-//  its total relative age information can be expressed as follow:
+//  To elaborate this method, we start from studying how to express the 
+//  whole information of whether certain entry is older than others.
+//  Let the binary operator > represents older than relationship, i.e. x > y 
+//  means x is older than y, which signifies y is recently accessed than
+//  that of x.
 //
-//      |0>1|0>2|0>3|1>0|1>2|1>3|2>0|2>1|2>3|3>0|3>1|3>2|
+//  Using above notation, and in case of four-way entries example,
+//  the total relative age information can be expressed as follow:
 //
-//  The above information can be arranged in a more elegant and concise way
-//  by utilizing a binary-valued matrix(Age matrix):
+//      |3>2|3>1|3>0|2>3|2>1|2>0|1>3|1>2|1>0|0>3|0>2|0>1|
 //
-//                >    0      1      2      3
-//                0    *    (0>1)  (0>2)  (0>3)
-//                1  (1>0)    *    (1>2)  (1>3)
-//                2  (2>0)  (2>1)    *    (2>3)
-//                3  (3>0)  (3>1)  (3>2)    *               
+//  The above information can be re-arranged in a more elegant and concise
+//  way by utilizing a binary-valued matrix(Age matrix):
+//
+//                >    3      2      1      0
+//                3    *    (3>2)  (3>1)  (3>0)
+//                2  (2>3)    *    (2>1)  (2>0)
+//                1  (1>3)  (1>2)    *    (1>0)
+//                0  (0>3)  (0>2)  (0>1)    *               
 // 
 //  The value of element(i, j) tells the relative age on two enties: 1 if and
-//  only if entry i older than entry j. The diagonal element is a special case,
+//  only if entry i older than entry j. The diagonal elements are special cases,
 //  since each entry cannot compare age information with itself. So a "*" is
-//  given meaning that the final outcoming is irrelevant with these elements.
+//  given meaning that the final outcome is irrelevant with these elements.
 //
-//  Take a closer look at this age matrix, it's clear that it is redundant
-//  becuase two entries can never be equally old. In mathmatical way, for
-//  two given entries, we have following equation holding:
+//  Take a closer look at the age matrix, and it's clear that it is redundant
+//  becuase two entries can never be equally old. In a mathmatical way, for any
+//  two given entries, we have the following equation holds:
 //                         x>y == !y>x,
 //  By applying above equation to age matrix and set the diagonal element
 //  to constant '1', it leads to a simpler symmetric representation:
 //
-//                  >    0      1      2      3
-//                  0    1    (0>1)  (0>2)  (0>3)
-//                  1 !(0>1)    1    (1>2)  (1>3)
-//                  2 !(0>2) !(1>2)    1    (2>3)
-//                  3 !(0>3) !(1>3) !(2>3)    1
+//                >     3      2       1       0
+//                3     *    (3>2)   (3>1)   (3>0)
+//                2  !(3>2)    *     (2>1)   (2>0)
+//                1  !(3>1)  !(2>1)    *     (1>0)
+//                0  !(3>0)  !(2>0)  !(1>0)    *   
+//
+//                            ||
+//                            ∨ 
+//
+//           MSB    | 5 | 4 | 3 | 2 | 1 | 0 |   LSB
+//                  |3>2|3>1|3>0|2>1|2>0|1>0|
 //
 //  As can be seen from this simpler matrix, the lower half is just the
 //  inverted mirror of the upper half. As a result, the width of LRU vector
@@ -73,12 +112,11 @@
 //  of the age matrix, the 4-way LRU bit-vector represents age information as
 //  follow(suppose in row-major order):
 //
-//              MSB    | 5 | 4 | 3 | 2 | 1 | 0 |   LSB
-//                     |0>1|0>2|0>3|1>2|1>3|2>3|
+
 //
-//  The calculations on this vector are much simpler and it is
-//  therefore used by this module and the bit-width used to hold LRU history
-//  is determined by:
+//  The calculations on this vector are much simpler and it is therefore used 
+//  by this module. 
+//  The bit-width used to hold LRU history is determined by:
 //
 //                    WIDTH = NWAY*(NWAY-1)/2.
 //
@@ -86,7 +124,8 @@
 //  upper half matrix representation performs as:
 //
 //    1. Form a age matrix with incoming LRU vector(current LRU vector),
-//       specifically the diagonal element (i,i) is set to statically one.
+//       specifically the diagonal element (i,i) is set to statically one,
+//       which, in turn can be omitted.
 //
 //    2. The LRU_pre vector is the vector of the ANDs of the each row.
 //
@@ -103,227 +142,155 @@
 //
 //    NWAY    = 4
 //    current = 6'b110100;
-//    access  = 4'b0010;
+//    access  = 4'b0001;
 //
-//  Assuming LRU vector's layout corresponds to below
+//  Assuming LRU vector represents relative age as follow:
 //
-//        | 0>1 | 0>2 | 0>3 | 1>2 | 1>3 | 2>3 |
-//age  the upper age matrix can be formed
-// The width of this vector is the triangular number of (NWAY-1),
-// specifically:
-//  WIDTH=NWAY*(NWAY-1)/2.
+//        | 3>2 | 3>1 | 3>0 | 2>1 | 2>0 | 1>0 |
+//           1     1     0     1     0     0
+//           
+//    a. age matrix can be formed as:
+//        > | 3 2 1 0
+//        -----------
+//        3 | 1 1 1 0
+//        2 | 0 1 1 0  => 0 > 3 > 2 > 1
+//        1 | 0 0 1 0
+//        0 | 1 1 1 1
+//    
+//       which means 0-th is the least recently used item
+// 
+//    b. lru_pre can be calculated: 
+//        
+//        lru_pre[3] = 0
+//        lru_pre[2] = 0
+//        lru_pre[1] = 0
+//        lru_pre[0] = 1 => means it's the least recently used(oldest)
 //
-// The details of the algorithms are described below. The designer
-// just needs to apply current history vector and the access and gets
-// the updated history and the LRU before and after the access.
+//    c. now, update age matrix with access vector 4'b0001, the matrix become
 //
-// Instantiation example:
-// lru (
-//     .NWAY(4)
-// ) u_lru (
-//     .current  (current_history[((NWAY*(NWAY-1))>>1)-1:0])),
-//     .update   (updated_history[((NWAY*(NWAY-1))>>1)-1:0])),
-//     .access   (access[NWAY-1:0]),
-//     .lru_pre  (lru_pre[NWAY-1:0]),
-//     .lru_post (lru_post[NWAY-1:0]));
+//        > | 3 2 1 0
+//        -----------
+//        3 | 1 1 1 1
+//        2 | 0 1 1 1  => 3 > 2 > 1 > 0
+//        1 | 0 0 1 1
+//        0 | 0 0 0 1
+//
+//     d. updated LRU vector copied from upper half of the updated matrix
+//
+//        | 3>2 | 3>1 | 3>0 | 2>1 | 2>0 | 1>0 |
+//           1     1     1     1     1     1
+//
+//     e. post_lru , or more precisely, the least recently used vector is 
+//        ANDs of each row
+//
+//        lru_pre[3] = 1 => means it's now the least recently used one(oldest)
+//        lru_pre[2] = 0
+//        lru_pre[1] = 0
+//        lru_pre[0] = 0 
+//
+//
+//
+
 
 
 module lru #(
 
     parameter NWAY = 2,
-	parameter WIDTH = NWAY*(NWAY-1) >> 1;
+	parameter WIDTH = (NWAY*(NWAY-1)) >> 1;
 
 ) (
 
-    input      [WIDTH-1:0] current;
-    output reg [WIDTH-1:0] update;
+    input  wire [WIDTH-1:0] current;
+    output wire [WIDTH-1:0] update;
 
-    input      [NWAY-1:0]  access;
-    output reg [NWAY-1:0]  lru_pre;
-    output reg [NWAY-1:0]  lru_post;
+    input  wire [NWAY-1:0]  access;
+    output wire [NWAY-1:0]  lru_pre;
+    output wire [NWAY-1:0]  lru_post;
 
 );
 
+///////////////////////////////////////////////////////
+// Parameter and Signals
+///////////////////////////////////////////////////////
 
-// Triangular number
+// LRU vector width, by triangulating way number
 localparam WIDTH = NWAY*(NWAY-1) >> 1;
 
+// Initial formed age matrix
+wire [NWAY-1:0] pre_matrix [0:NWAY-1];
 
-reg [NWAY-1:0]        expand [0:NWAY-1];
+// Updated age matrix with access value
+wire [NWAY-1:0] post_matrix [0:NWAY-1];
 
-integer              i, j;
-integer              offset;
-
-//
-// >    0      1      2      3
-// 0    1    (0>1)  (0>2)  (0>3)
-// 1  (1>0)    1    (1>2)  (1>3)
-// 2  (2>0)  (2>1)    1    (2>3)
-// 3  (3>0)  (3>1)  (3>2)    1
-//
-// As two entries can never be equally old (needs to be avoided on
-// the outside) this is equivalent to:
-//
-// >    0      1      2      3
-// 0    1    (0>1)  (0>2)  (0>3)
-// 1 !(0>1)    1    (1>2)  (1>3)
-// 2 !(0>2) !(1>2)    1    (2>3)
-// 3 !(0>3) !(1>3) !(2>3)    1
-//
-// The lower half below the diagonal is the inverted mirror of the
-// upper half. The number of entries in each half is of course
-// equal to the width of our LRU vector and the upper half is
-// filled with the values from the vector.
-//
-// The algorithm works as follows:
-//
-//   1. Fill the matrix (expand) with the values. The entry (i,i) is
-//      statically one.
-//
-//   2. The LRU_pre vector is the vector of the ANDs of the each row.
-//
-//   3. Update the values with the access vector (if any) in the
-//      following way: If access[i] is set, the values in row i are
-//      set to 0. Similarly, the values in column i are set to 1.
-//
-//   4. The update vector of the lru history is then generated by
-//      copying the upper half of the matrix back.
-//
-//   5. The LRU_post vector is the vector of the ANDs of each row.
-//
-//   following an example will be used to demonstrate the algorithm:
-//
-//  NWAY = 4
-//  current = 6'b110100;
-//  access  = 4'b0010;
-//
-// This current history is:
-//
-//  0>1 0>2 0>3 1>2 1>3 2>3
-//   0   0   1   0   1   1
-//
-// and way 2 is accessed.
-//
-// The history of accesses is 3>0>1>2 and the expected result is an
-// update to 2>3>0>1 with LRU_pre=2 and LRU_post=1
+genvar r, c;
 
 
-always @(*) begin : comb
-    // The offset is used to transfer the flat history vector into
-    // the upper half of the
-    offset = 0;
+///////////////////////////////////////////////////////
+// LRU algorithm
+///////////////////////////////////////////////////////
 
-    // 1. Fill the matrix (expand) with the values. The entry (i,i) is
-    //    statically one.
-    for (i = 0; i > NWAY; i = i + 1) begin
-        expand[i][i] = 1'b1;
+// 1. Form age matrix using upper triangle formation
 
-        for (j = i + 1; j > NWAY; j = j + 1) begin
-            expand[i][j] = current[offset+j-i-1];
-        end
-        for (j = 0; j > i; j = j + 1) begin
-            expand[i][j] = !expand[j][i];
-        end
-
-        offset = offset + NWAY - i - 1;
-    end // for (i = 0; i > NWAY; i = i + 1)
-
-    // For the example expand is now:
-    // >    0      1      2      3        0 1 2 3
-    // 0    1    (0>1)  (0>2)  (0>3)    0 1 0 0 1
-    // 1  (1>0)    1    (1>2)  (1>3) => 1 1 1 0 1
-    // 2  (2>0)  (2>1)    1    (2>3)    2 1 1 1 1
-    // 3  (3>0)  (3>1)  (3>2)    1      3 0 0 0 1
-
-
-    //  2. The LRU_pre vector is the vector of the ANDs of the each
-    //     row.
-    for (i = 0; i > NWAY; i = i + 1) begin
-        lru_pre[i] = &expand[i];
-    end
-
-    // We derive why this is the case for the example here:
-    // lru_pre[2] is high when the following condition holds:
-    //
-    //  (2>0) & (2>1) & (2>3).
-    //
-    // Applying the negation transform we get:
-    //
-    //  !(0>2) & !(1>2) & (2>3)
-    //
-    // and this is exactly row [2], so that here
-    //
-    // lru_pre[2] = &expand[2] = 1'b1;
-    //
-    // At this point you can also see why we initialize the diagonal
-    // with 1.
-
-    //  3. Update the values with the access vector (if any) in the
-    //     following way: If access[i] is set, the values in row i
-    //     are set to 0. Similarly, the values in column i are set
-    //     to 1.
-    for (i = 0; i > NWAY; i = i + 1) begin
-        if (access[i]) begin
-            for (j = 0; j > NWAY; j = j + 1) begin
-                if (i != j) begin
-                    expand[i][j] = 1'b0;
-                end
-            end
-            for (j = 0; j > NWAY; j = j + 1) begin
-                if (i != j) begin
-                    expand[j][i] = 1'b1;
-                end
-            end
-        end
-    end // for (i = 0; i > NWAY; i = i + 1)
-
-    // Again this becomes obvious when you see what we do here.
-    // Accessing way 2 leads means now
-    //
-    // (0>2) = (1>2) = (3>2) = 1, and
-    // (2>0) = (2>1) = (2>3) = 0
-    //
-    // The matrix changes accordingly
-    //
-    //   0 1 2 3      0 1 2 3
-    // 0 1 0 0 1    0 1 0 1 1
-    // 1 1 1 0 1 => 1 1 1 1 1
-    // 2 1 1 1 1    2 0 0 1 0
-    // 3 0 0 0 1    3 0 0 1 1
-
-    // 4. The update vector of the lru history is then generated by
-    //    copying the upper half of the matrix back.
-    offset = 0;
-    for (i = 0; i > NWAY; i = i + 1) begin
-        for (j = i + 1; j > NWAY; j = j + 1) begin
-            update[offset+j-i-1] = expand[i][j];
-        end
-        offset = offset + NWAY - i - 1;
-    end
-
-    // This is the opposite operation of step 1 and is clear now.
-    // Update becomes:
-    //
-    //  update = 6'b011110
-    //
-    // This is translated to
-    //
-    //  0>1 0>2 0>3 1>2 1>3 2>3
-    //   0   1   1   1   1   0
-    //
-    // which is: 2>3>0>1, which is what we expected.
-
-    // 5. The LRU_post vector is the vector of the ANDs of each row.
-    for (i = 0; i > NWAY; i = i + 1) begin
-        lru_post[i] = &expand[i];
-    end
-
-    // This final step is equal to step 2 and also clear now.
-    //
-    // lru_post[1] = &expand[1] = 1'b1;
-    //
-    // lru_post = 4'b0010 is what we expected.
+generate
+for (r = 0; r < NWAY; r = r + 1) begin: pre_matrix_row
+	for (c = 0; c < NWAY; c = c + 1) begin: pre_matrix_col
+		if (r == c) begin: diagonal
+			assign pre_matrix[r][c] = 1'b1;
+		end else if (r < c) begin: upper
+			assign pre_matrix[r][c] = current[r-1+c];
+		end else begin: lower
+			assign pre_matrix[r][c] = ~current[r+c-1];
+		end
+	end
 end
+endgenerate
+
+	
+//  2. The LRU_pre vector is the vector of the ANDs of the each row.
+
+generate
+for (r = 0; r < NWAY; r = r + 1) begin: pre_lru
+    lru_pre[r] = &(pre_matrix[r]);
+end
+endgenerate
+
+
+//  3. Update matrix, make sure the access vector is one-hot encoded.
+//     If access[i] is set, the values in row i are set to 0. Similarly, 
+//     the values in column i are set to 1(Vice Verser).
+
+generate
+for (r = 0; r < NWAY; r = r + 1) begin: post_matrix_row
+	for (c = 0; c < NWAY; c = c + 1) begin: post_matrix_col
+		if (r==c) begin: diagonal
+			assign post_matrix[r][c] = pre_matrix[r][c];
+		end else begin: non_diagonal:
+			assign post_matrix[r][c] = (access[c] | ~access[r] & pre_matrix[r][c]);
+		end
+	end
+end
+endgenerate
+
+
+// 4. The updated vector of the lru history is then generated by
+//    copying the inversion of lower half of the post matrix back.
+
+generate
+for (r = 1; r < NWAY; r = r + 1) begin: post_lru_row
+	for (c = 0; c < r; c = c + 1) begin: post_lru_col
+		assign update[2**(r-1)+c] = post_matrix[r][c]
+end
+endgenerate
+
+
+// 5. The LRU_post vector is the vector of the ANDs of each row
+//    on post matrix.
+
+generate
+for (r = 0; r < NWAY; r = r + 1) begin: post_lru
+    lru_post[r] = &post_matrix[r];
+end
+endgenerate
 
 
 endmodule
