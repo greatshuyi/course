@@ -25,22 +25,22 @@
 //  * lru_post: LRU after the access (one hot of ways)
 //
 // To used this module, caller must be explicitly instantiate registers to hold
-// LRU history vectors. An Instantiation example as follow:
+// LRU history vectors and **its initial value An Instantiation example as follow:
 //
 //     ...
 //     parameter NWAY = 4;
-//     parameter LRU_WIDTH = (NWAY * ( NWAY-1)) >> 1;
+//     parameter LRUW = (NWAY * ( NWAY-1)) >> 1;
 //
 //     ...
 //
 //     // LRU history vector registering
-//     reg [LRU_WIDTH-1:0] current_history;
-//     reg [LRU_WIDTH-1:0] updated_history;
+//     reg [LRUW-1:0] current_history;
+//     reg [LRUW-1:0] updated_history;
 //
 //     // Access vector & Pre/Post LRU selection vector
 //     wire [NWAY-1:0] access;
-//     wire [NWAY-1:0] lru_pre;
-//     wire [NWAY-1:0] lru_post;
+//     wire [NWAY-1:0] pre_lru;
+//     wire [NWAY-1:0] post_lru;
 //     ...
 //
 //     lru (
@@ -49,8 +49,9 @@
 //         .current  (current_history),
 //         .update   (updated_history),
 //         .access   (access),
-//         .lru_pre  (lru_pre),
-//         .lru_post (lru_post));
+//         .pre_lru  (pre_lru),
+//         .post_lru (post_lru)
+//     );
 //
 //
 // Algorithm description:
@@ -60,12 +61,12 @@
 //  An intuitive way is to use comparators to accomplish it. However, a
 //  neat approach exists not only to store the coded history efficiently,
 //  but also easing the aging info's calculation.
-// 
+//
 //  To elaborate this method, we start from studying how to express the 
 //  whole information of whether certain entry is older than others.
 //  Let the binary operator > represents older than relationship, i.e. x > y 
-//  means x is older than y, which signifies y is recently accessed than
-//  that of x.
+//  means x is older than y, which signifies x is less recently accessed than
+//  that of y.
 //
 //  Using above notation, and in case of four-way entries example,
 //  the total relative age information can be expressed as follow:
@@ -161,10 +162,10 @@
 // 
 //    b. lru_pre can be calculated: 
 //        
-//        lru_pre[3] = 0
-//        lru_pre[2] = 0
-//        lru_pre[1] = 0
-//        lru_pre[0] = 1 => means it's the least recently used(oldest)
+//        pre_lru[3] = 0
+//        pre_lru[2] = 0
+//        pre_lru[1] = 0
+//        pre_lru[0] = 1 => means it's the least recently used(oldest)
 //
 //    c. now, update age matrix with access vector 4'b0001, the matrix become
 //
@@ -183,10 +184,10 @@
 //     e. post_lru , or more precisely, the least recently used vector is 
 //        ANDs of each row
 //
-//        lru_pre[3] = 1 => means it's now the least recently used one(oldest)
-//        lru_pre[2] = 0
-//        lru_pre[1] = 0
-//        lru_pre[0] = 0 
+//        post_lru[3] = 1 => means it's now the least recently used one(oldest)
+//        post_lru[2] = 0
+//        post_lru[1] = 0
+//        post_lru[0] = 0 
 //
 //
 //
@@ -217,10 +218,10 @@ module lru #(
 localparam WIDTH = NWAY*(NWAY-1) >> 1;
 
 // Initial formed age matrix
-wire [NWAY-1:0] pre_matrix [0:NWAY-1];
+wire [NWAY-1:0] pre_matrix [NWAY-1:0];
 
 // Updated age matrix with access value
-wire [NWAY-1:0] post_matrix [0:NWAY-1];
+wire [NWAY-1:0] post_matrix [NWAY-1:0];
 
 genvar r, c;
 
@@ -234,23 +235,27 @@ genvar r, c;
 generate
 for (r = 0; r < NWAY; r = r + 1) begin: pre_matrix_row
 	for (c = 0; c < NWAY; c = c + 1) begin: pre_matrix_col
+	
 		if (r == c) begin: diagonal
 			assign pre_matrix[r][c] = 1'b1;
 		end else if (r < c) begin: upper
-			assign pre_matrix[r][c] = current[r-1+c];
+			assign pre_matrix[r][c] =  current[r-1+c];
 		end else begin: lower
 			assign pre_matrix[r][c] = ~current[r+c-1];
 		end
+		
 	end
 end
 endgenerate
 
 	
-//  2. The LRU_pre vector is the vector of the ANDs of the each row.
+//  2. The pre_lru vector is the vector of the ANDs of the each row.
 
 generate
-for (r = 0; r < NWAY; r = r + 1) begin: pre_lru
-    lru_pre[r] = &(pre_matrix[r]);
+for (r = 0; r < NWAY; r = r + 1) begin: lru_pre
+
+    pre_lru[r] = &(pre_matrix[r]);
+	
 end
 endgenerate
 
@@ -262,11 +267,13 @@ endgenerate
 generate
 for (r = 0; r < NWAY; r = r + 1) begin: post_matrix_row
 	for (c = 0; c < NWAY; c = c + 1) begin: post_matrix_col
+	
 		if (r==c) begin: diagonal
 			assign post_matrix[r][c] = pre_matrix[r][c];
 		end else begin: non_diagonal:
 			assign post_matrix[r][c] = (access[c] | ~access[r] & pre_matrix[r][c]);
 		end
+		
 	end
 end
 endgenerate
@@ -278,19 +285,21 @@ endgenerate
 generate
 for (r = 1; r < NWAY; r = r + 1) begin: post_lru_row
 	for (c = 0; c < r; c = c + 1) begin: post_lru_col
-		assign update[2**(r-1)+c] = post_matrix[r][c]
+		assign update[2**(r-1)+c] = post_matrix[r][c];
+	end	
 end
 endgenerate
 
 
-// 5. The LRU_post vector is the vector of the ANDs of each row
+// 5. The post_lru vector is the vector of the ANDs of each row
 //    on post matrix.
 
 generate
-for (r = 0; r < NWAY; r = r + 1) begin: post_lru
+for (r = 0; r < NWAY; r = r + 1) begin: lru_post
     lru_post[r] = &post_matrix[r];
 end
 endgenerate
+
 
 
 endmodule
