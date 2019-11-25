@@ -1,6 +1,72 @@
 
-
 `include "lib.vh"
+
+module mux #(
+	parameter LANE = 4;
+) (
+
+	input   wire [LANE-1:0] in,
+	input   wire [LANE-1:0] sel,
+	input   wire            de,
+	output  wire            out
+);	
+
+genvar i;
+
+wire [LANEM-1:0] vector;
+
+generate
+for (i = 0 ; i < LANE; i = i + 1) begin: OR_TREE
+
+	assign vector[i] = sel[i] ? in[i] : 1'b0;
+
+end
+endgenerate
+
+wire res = |vector;
+assign out = (|sel) ?  : de
+
+endmodule /* mux */
+
+
+module vmux #(
+
+	parameter LANE = 4,
+	parameter WIDTH = 16
+	
+) (
+	input   wire [WIDTH-1:0] in [LANE-1:0] ,
+	input   wire [LANE-1:0]  sel,
+	input   wire [WIDTH-1:0] de,
+	output  reg  [WIDTH-1:0] out
+);
+
+genvar l, w;
+
+wire [LANE-1:0] mxn [WIDTH-1:0];
+
+generate
+	for (w = 0; w < WIDTH; w = w + 1) begin: row
+		for (l = 0; l < LANE; l = l + 1) begin: col
+			assign mxn[w][l] = in[l][w];
+		end
+	end
+endgenerate
+
+generate begin
+	for (w = 0 ; w < WIDTH; w = w + 1) begin
+		
+		mux #(
+			.LANE(LANE) ) 
+		mx (
+			.in(mxn[w]),
+			.sel(sel),
+			.de(de[w]),
+			.out(out[w]))
+	end
+end
+
+endmodule /* vmux */
 
 
 module reverse #(
@@ -22,22 +88,22 @@ endmodule
 
 module encode #(
 
-	parameter IW = 8,
-	parameter OW = `CLOG2(IW)
+	parameter IWIDTH = 8,
+	parameter OWIDTH = `CLOG2(IWIDTH)
 
 ) (
 
-	input  [IW-1:0] in,
-	output [OW-1:0] out,
+	input  [IWIDTH-1:0] in,
+	output [OWIDTH-1:0] out,
 	output          vld			// asserts in contains at least one '1' bit
 
 );
 
 integer i;
-reg [OW-1:0] tmp;
+reg [OWIDTH-1:0] tmp;
 always @(*) begin
 	tmp = 0;
-	for (i=0; i<IW; i=i+1) begin
+	for (i=0; i<IWIDTH; i=i+1) begin
 		if (in[i])
 			tmp = i;
 	end
@@ -46,7 +112,37 @@ end
 assign vld = &(~in);
 assign out = tmp;
 
-endmodule
+endmodule /* encode */
+
+
+
+
+module decode #(
+
+	parameter IWIDTH = 3,
+	parameter OWIDTH = 2**IWIDTH
+	
+) (
+	input                en,
+	input  [IWIDTH-1:0]  in,
+	output [OWIDTH-1:0]  out
+	output               vld
+);
+
+genvar i;
+
+generate
+	for(i = 0; i < OWIDTH ; i = i + 1) begin: dec
+		assign out[i] = en & (in == i); 
+	end
+endgenerate
+
+assign vld = en; 
+
+endmodule /* decode */
+
+
+
 
 module leading_zero_detector #(
 	parameter WIDTH = 8,
@@ -77,53 +173,37 @@ assign vld = ~(&vld);
 endmodule
 
 
-module decode #(
-
-	parameter IW = 3,
-	parameter OW = 2**IW
-) (
-	input            en,
-	input  [IW-1:0]  in,
-	output [OW-1:0]  out
-	output           vld
-);
-
-genvar i;
-
-generate
-	for(i=0;  i< ; i=i+1) begin: dec
-		assign out[i] = (in == i); 
-	end
-endgenerate
-
-assign vld = en; 
-
-endmodule
-
-
 module group_match #(
-	parameter IN_WIDTH = 16,
-	parameter OUT_WIDTH = 4,
+
+	parameter IWIDTH = 16,
+	parameter OWIDTH = 4,
+	
 ) (
-	input wire [IN_WIDTH-1:0] in,
-	output wire [OUT_WIDTH-1:0] out
+
+	input  wire [IWIDTH-1:0] in,
+	output wire [OWIDTH-1:0] out
 );
 	
-	reg [OUT_WIDTH-1:0] valid;
-	integer i;
-	always @(*) begin
-		valid[i] = |(in[(IN_WIDTH-i*OUT_WIDTH)-1: OUT_WIDTH]);
-	end
-	
-	assign out = valid;
+reg [OWIDTH-1:0] valid;
+integer i;
+
+always @(*) begin
+	valid[i] = |(in[(IWIDTH-i*OWIDTH)-1: OWIDTH]);
+end
+
+assign out = valid;
 	
 endmodule
 
 module check_onehot #(
+
     parameter WIDTH = 4
+
 ) (
+
     input  wire [WIDTH-1:0] in,
     output wire             out
+
 );
 
 localparam integer ONE = 1;
@@ -171,17 +251,20 @@ genvar i;
 
 generate if (DIRECTION == "LSB") begin: LSB
     for (i=0; i<WIDTH; i=i+1) begin
+	
         assign out[i] = |in[WIDTH-1: i];
-    end
+    
+	end
 end else begin: MSB
     for (i=WIDTH-1; i>=0; i=i-1) begin
-        assign out[i]= |in[i: 0];
-    end
+        
+		assign out[i]= |in[i: 0];
+    
+	end
 end
 endgenerate
 
 endmodule
-
 
 
 module rotate #(
@@ -191,8 +274,8 @@ module rotate #(
 	parameter DIRECTION = "LEFT"
 	
 ) (
-    input           ren,
-	input  [NG-1:0] rotate,
+    input              ren,
+	input  [NG-1:0]    rotate,
 	input  [DW*DW-1:0] din,
 	output [DW*NG-1:0] dout,
 	
@@ -229,11 +312,11 @@ generate begin
 	end
 endgenerate
 
-encode #(.IW(NG) ) sel_enc (
+encode #(.IWIDTH(NG) ) 
+sel_enc (
 	.in(rotate),
 	.out(idx),
-	.vld(idx_vld)
-);
+	.vld(idx_vld) );
 
 assign dout = shift[idx];
 
