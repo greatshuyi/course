@@ -103,6 +103,115 @@
 //     
 //
 //
+// 
+// from functools import reduce
+// from random import randint
+// 
+// def binv(x):
+//     return 0 if x == 1 else 1
+// 
+// def bxor(x, y):
+//     return 1 if x != y else 0
+// 
+// def band(x, y):
+//     return 1 if x == 1 and y == 1 else 0
+// 
+// def bor(x, y):
+//     return 1 if x == 1 or y == 1 else 0
+// 
+// def reduce_and(*l):
+//     return reduce(band, l, 1)
+// 
+// def reduce_or(*l):
+//     return reduce(bor, l, 0)
+// 
+// def reduce_xor(*l):
+//     return reduce(bxor, l)
+// 
+// l = [0, 1, 1, 0, 1]
+// 
+// print("Reduced xor")
+// r = reduce_xor(*l)
+// print(r)
+// print("Reduced and")
+// r = reduce_and(*l)
+// print(r)
+// print("Reduced or")
+// r = reduce_or(*l)
+// print(r)
+// print("Invert")
+// r = binv(1)
+// print(r)
+// r = binv(0)
+// print(r)
+// 
+// 
+// def gen_seq(l, mode=1):
+//     res = []
+//     if mode == 1:
+//         return [i for i in range(l)]
+//     else:
+//         for _ in range(l):
+//             s = randint(0, l)
+//             res.append(s % 2)
+// 
+//     return res
+// 
+// 
+// nways = 16
+// 
+// depth = nways.bit_length() - 1
+// width = nways
+// 
+// lruw = nways - 1
+// 
+// bst_matrix = [["" for _ in range(width)] for _ in range(depth)]
+// vector = gen_seq(lruw)
+// 
+// 
+// for r in range(depth):
+//     for c in range(width):
+//         i = lruw - (2**r) - (c >> (depth-r))
+// 
+//         if ( (c >> (depth-1-r)) % 2 ) == 0:
+//             bst_matrix[r][c] = "{}".format(vector[i])
+//             # bst_matrix[r][c] = vector[i]
+//         else:
+//             bst_matrix[r][c] = "-{}".format(vector[i])
+//             # bst_matrix[r][c] = binv(vector[i])
+// 
+// print("bst_plru vector")
+// print(vector)
+// print("")
+// print("pre_bst_matrix")
+// for v in bst_matrix:
+//     print(v)
+// 
+// access = gen_seq(nways)
+// mask_matrix = [[4 for _ in range(lruw)] for _ in range(nways)]
+// 
+// 
+// for b in range(depth):
+//     for r in range(nways):
+//         w = 2**(depth-1-b)
+//         # print(w)
+//         for c in range(w):
+//             offset = nways - 2 ** (depth-b)
+//             # print(offset)
+//             if ( r >> (b+1) ) == c:
+//                 mask_matrix[r][c+offset] = 1
+//             else:
+//                 mask_matrix[r][c+offset] = 0
+// 
+// 
+// print("")
+// print("")
+// print("access vector")
+// print(access)
+// print("")
+// print("mask_matrix")
+// for v in mask_matrix:
+//     print(v)
 
 
 `include dw.v
