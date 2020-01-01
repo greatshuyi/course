@@ -1,13 +1,15 @@
 
 `include "lib.vh"
-
+//-------------------------------------------------------------------------
+// Parameterized Multi-lane Single-bit Mux
+//-------------------------------------------------------------------------
 module mux #(
 	parameter LANE = 4;
 ) (
 
 	input   wire [LANE-1:0] in,
 	input   wire [LANE-1:0] sel,
-	input   wire            de,
+	input   wire            de,				// default output value if invalid selection applied
 	output  wire            out
 );	
 
@@ -29,6 +31,10 @@ assign out = (|sel) ?  : de
 endmodule /* mux */
 
 
+
+//-------------------------------------------------------------------------
+// Parameterized Multi-bit multi-lane Mux
+//-------------------------------------------------------------------------
 module vmux #(
 
 	parameter LANE = 4,
@@ -69,6 +75,9 @@ end
 endmodule /* vmux */
 
 
+//-------------------------------------------------------------------------
+// Parameterized Multi-bit bus reverser
+//-------------------------------------------------------------------------
 module reverse #(
 	parameter WIDTH = 16
 ) (
@@ -86,6 +95,9 @@ end
 endmodule
 
 
+//-------------------------------------------------------------------------
+// Parameterized Binary Encoder
+//-------------------------------------------------------------------------
 module encode #(
 
 	parameter IWIDTH = 8,
@@ -95,7 +107,7 @@ module encode #(
 
 	input  [IWIDTH-1:0] in,
 	output [OWIDTH-1:0] out,
-	output          vld			// asserts in contains at least one '1' bit
+	output              vld			// asserts in contains at least one '1' bit
 
 );
 
@@ -116,7 +128,9 @@ endmodule /* encode */
 
 
 
-
+//-------------------------------------------------------------------------
+// Parameterized Binary Decoder
+//-------------------------------------------------------------------------
 module decode #(
 
 	parameter IWIDTH = 3,
@@ -143,7 +157,9 @@ endmodule /* decode */
 
 
 
-
+//-------------------------------------------------------------------------
+// LSB-first, Parameterized First zero detector
+//-------------------------------------------------------------------------
 module leading_zero_detector #(
 	parameter WIDTH = 8,
 ) (
@@ -173,28 +189,10 @@ assign vld = ~(&vld);
 endmodule
 
 
-module group_match #(
 
-	parameter IWIDTH = 16,
-	parameter OWIDTH = 4,
-	
-) (
-
-	input  wire [IWIDTH-1:0] in,
-	output wire [OWIDTH-1:0] out
-);
-	
-reg [OWIDTH-1:0] valid;
-integer i;
-
-always @(*) begin
-	valid[i] = |(in[(IWIDTH-i*OWIDTH)-1: OWIDTH]);
-end
-
-assign out = valid;
-	
-endmodule
-
+//-------------------------------------------------------------------------
+// Parameterized One-hot Checer
+//-------------------------------------------------------------------------
 module check_onehot #(
 
     parameter WIDTH = 4
@@ -221,6 +219,12 @@ assign out = | ohot;
 
 endmodule
 
+
+
+
+//-------------------------------------------------------------------------
+// Parameterized one-hot to thermal convertor
+//-------------------------------------------------------------------------
 module onehot2thermal #(
     parameter WIDTH = 32,
     parameter DIRECTION = "LSB"         // priority direction
@@ -267,6 +271,10 @@ endgenerate
 endmodule
 
 
+
+//-------------------------------------------------------------------------
+// Parameterized variable-width rotator
+//-------------------------------------------------------------------------
 module rotate #(
 
 	parameter DW = 16,
@@ -321,3 +329,18 @@ sel_enc (
 assign dout = shift[idx];
 
 endmodule
+
+//-------------------------------------------------------------------------
+// Parameterized multi-lane comparator matrix
+//-------------------------------------------------------------------------
+
+module age_matrix #(
+	parameter NLANE = 4,
+	parameter   = 6,
+	
+) (
+	input [AGEW-1:0]   ival [NLANE-1:0],
+	input [NLANE-1:0]  ivld
+);
+endmodule
+	
